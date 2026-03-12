@@ -1,0 +1,3 @@
+set BITSO_API_KEY=ifZOXIGEee
+set BITSO_API_SECRET=504f48cf1981f005fee3352eaf3bf8a3
+python main.py
