@@ -4,25 +4,26 @@ import requests
 import hashlib
 import hmac
 import os
+import pandas as pd
+import mplfinance as mpf
+from io import BytesIO
 from dotenv import load_dotenv
 
-# 1. Configuración de Seguridad
+# 1. SEGURIDAD PRO (Secrets en Nube, .env en PC)
 load_dotenv()
 API_KEY = st.secrets.get("BITSO_API_KEY") or os.getenv("BITSO_API_KEY")
 API_SECRET = st.secrets.get("BITSO_API_SECRET") or os.getenv("BITSO_API_SECRET")
 
-# --- ESTILO "HACKER / PELÍCULA" (CSS) ---
+# --- ESTILO "HACKER / PELÍCULA" (CSS ACTUALIZADO) ---
 st.markdown("""
     <style>
-    .main {
-        background-color: #000000;
-    }
     .stApp {
         background-color: #000000;
+        color: #00FF41;
+        font-family: 'Courier New', Courier, monospace;
     }
     h1 {
-        color: #00FF41; /* Verde Matrix */
-        font-family: 'Courier New', Courier, monospace;
+        color: #00FF41 !important;
         text-shadow: 0 0 10px #00FF41;
         text-align: center;
     }
@@ -30,12 +31,11 @@ st.markdown("""
         background-color: #0d0d0d;
         border: 1px solid #00FF41;
         border-radius: 10px;
-        padding: 20px;
+        padding: 15px;
         box-shadow: 0 0 15px #00FF41;
     }
     div[data-testid="stMetricValue"] {
         color: #00FF41 !important;
-        font-family: 'Courier New', Courier, monospace;
     }
     .stButton>button {
         width: 100%;
@@ -43,8 +43,6 @@ st.markdown("""
         color: #00FF41;
         border: 2px solid #00FF41;
         border-radius: 20px;
-        font-weight: bold;
-        text-transform: uppercase;
         transition: 0.3s;
     }
     .stButton>button:hover {
@@ -52,68 +50,131 @@ st.markdown("""
         color: black;
         box-shadow: 0 0 20px #00FF41;
     }
+    /* Estilo para el selector */
+    div[data-testid="stSelectbox"] > div {
+        background-color: #0d0d0d;
+        border: 1px solid #00FF41;
+        color: #00FF41;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-class AngelTrader:
+class BitsoBot:
     def __init__(self):
-        self.url_base = "https://api.bitso.com"
+        self.url_base = "https://api.bitso.com/v3"
 
-    def firmar_solicitud(self, metodo, endpoint, payload=""):
+    def firmar(self, metodo, endpoint, payload=""):
         nonce = str(int(time.time() * 1000))
         message = nonce + metodo + endpoint + payload
         signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
         return {"Authorization": f"Bitso {API_KEY}:{nonce}:{signature}", "Content-Type": "application/json"}
 
-    def obtener_precio(self):
+    def get_ticker(self, book):
         try:
-            r = requests.get(f"{self.url_base}/v3/ticker/?book=btc_mxn")
+            r = requests.get(f"{self.url_base}/ticker/?book={book}", timeout=5)
             return float(r.json()['payload']['last'])
         except: return None
 
-    def comprar_btc(self, monto_mxn):
-        endpoint = "/v3/orders/"
-        payload = f'{{"book":"btc_mxn","side":"buy","type":"market","major":"{monto_mxn}"}}'
-        headers = self.firmar_solicitud("POST", endpoint, payload)
+    def get_saldo(self):
+        endpoint = "/v3/balances/"
+        headers = self.firmar("GET", endpoint)
         try:
-            r = requests.post(f"{self.url_base}{endpoint}", data=payload, headers=headers)
-            return r.json()
-        except Exception as e: return {"status": "error", "message": str(e)}
+            r = requests.get(f"https://api.bitso.com{endpoint}", headers=headers, timeout=5)
+            return r.json()['payload']['balances']
+        except: return []
 
-# --- INTERFAZ ---
-st.markdown("<h1>> ANGEL_IA_OPERATIONS_</h1>", unsafe_allow_html=True)
+    def get_candlesticks(self, book):
+        # Bitso no tiene endpoint público de velas, usamos un proxy público confiable
+        # Esto obtiene datos de los últimos 2 días en velas de 30 mins
+        url = f"https://api.cryptowat.ch/markets/bitso/{book}/ohlc?periods=1800&after={int(time.time()) - 172800}"
+        try:
+            r = requests.get(url, timeout=10)
+            data = r.json()['result']['1800']
+            df = pd.DataFrame(data, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Volume', 'N'])
+            df['Time'] = pd.to_datetime(df['Time'], unit='s')
+            df.set_index('Time', inplace=True)
+            return df
+        except Exception as e:
+            return None
 
-bot = AngelTrader()
-
-# Simulación de "Carga de Datos"
-with st.status("📡 Conectando con los servidores de Bitso...", expanded=False) as status:
-    precio = bot.obtener_precio()
-    time.sleep(1)
-    st.write("🔐 Autenticando llaves API...")
-    time.sleep(1)
-    status.update(label="✅ CONEXIÓN ESTABLECIDA", state="complete", expanded=False)
-
-# El Ticker principal
-if precio:
-    st.metric(label="BITCOIN_PRICE_MXN", value=f"${precio:,.2f}")
-else:
-    st.error("SYSTEM_ERROR: CONNECTION_FAILED")
-
+# --- INICIALIZACIÓN ---
+st.markdown("<h1>> ANGEL_TRADER_IA_v2.0_</h1>", unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
+bot = BitsoBot()
 
-# Botón de acción con estilo
-if st.button("EJECUTAR ORDEN DE COMPRA (10 MXN)"):
-    with st.spinner("💾 PROCESANDO TRANSACCIÓN EN LA BLOCKCHAIN..."):
-        res = bot.comprar_btc("10.00")
-        if "payload" in res:
-            st.balloons()
-            st.success(f"ORDEN COMPLETADA_ ID: {res['payload']['oid']}")
+# --- SIDEBAR (CONFIGURACIÓN) ---
+st.sidebar.markdown("<h2 style='color:#00FF41;'>SELECCIÓN_MERCADO</h2>", unsafe_allow_html=True)
+moneda = st.sidebar.selectbox(
+    "Elije la cripto o divisa a operar:",
+    ("btc_mxn", "eth_mxn", "xrp_mxn", "usd_mxn")
+)
+nombre_moneda = moneda.split('_')[0].upper()
+
+# --- PANEL PRINCIPAL (PRECIO Y GRÁFICA) ---
+precio = bot.get_ticker(moneda)
+col1, col2 = st.columns([1, 2])
+
+with col1:
+    if precio:
+        st.metric(label=f"💰 PRECIO_{nombre_moneda}_MXN", value=f"${precio:,.2f}")
+    else:
+        st.error("SISTEMA_ERROR: CONEXIÓN_FALLIDA")
+        
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.toggle("🤖 ACTIVAR_MODO_AUTO_SCALPING", value=False)
+    st.button("⚡ COMPRA_RÁPIDA ($10 MXN)")
+
+with col2:
+    st.write("📊 GRÁFICA_VELAS_JAPONESAS (PRO)")
+    with st.spinner("💾 DESENCRIPTANDO DATOS DEL MERCADO..."):
+        df_velas = bot.get_candlesticks(moneda)
+        if df_velas is not None and not df_velas.empty:
+            # Configuración profesional de mplfinance (colores neón)
+            colores_hack = mpf.make_marketcolors(up='#00FF41', down='#FF003C', inherit=True)
+            estilo_hack = mpf.make_mpf_style(marketcolors=colores_hack, gridcolor='#0d0d0d', facecolor='black', edgecolor='#00FF41')
+            
+            # Renderizar la gráfica como imagen en memoria
+            buf = BytesIO()
+            mpf.plot(df_velas, type='candle', style=estilo_hack, volume=True, figratio=(16, 9), figscale=1.2, savefig=dict(fname=buf, dpi=100))
+            st.image(buf)
         else:
-            st.error("ACCESO DENEGADO_ REVISA SALDO O LLAVES")
+            st.error("Error al cargar datos gráficos.")
 
-# Sidebar Cyberpunk
-st.sidebar.markdown("<h2 style='color:#00FF41;'>MENU_SISTEMA</h2>", unsafe_allow_html=True)
-ia_status = st.sidebar.toggle("AUTO_TRADING_MODE")
+st.divider()
 
-if ia_status:
-    st.sidebar.warning("🤖 IA: BUSCANDO FALLAS EN EL MERCADO...")
+# --- SECCIÓN DE META (THE ROAD TO $10K USD) ---
+st.markdown("<h2 style='text-align:center; color:#D4AF37;'>THE_ROAD_TO_10K_USD</h2>", unsafe_allow_html=True)
+
+# Obtenemos saldos reales
+saldos = bot.get_saldo()
+total_mxn_estimado = 0
+precio_usd_mxn = bot.get_ticker("usd_mxn") or 17.50 # Precio estimado si falla el ticker
+
+if saldos:
+    for s in saldos:
+        currency = s['currency'].upper()
+        amount = float(s['total'])
+        if amount > 0:
+            if currency == 'MXN':
+                total_mxn_estimado += amount
+            else:
+                precio_moneda = bot.get_ticker(f"{currency.lower()}_mxn")
+                if precio_moneda:
+                    total_mxn_estimado += (amount * precio_moneda)
+
+# Convertimos meta a pesos
+meta_usd = 10000
+meta_mxn = meta_usd * precio_usd_mxn
+progreso = min(total_mxn_estimado / meta_mxn, 1.0) if meta_mxn > 0 else 0
+
+st.progress(progreso)
+st.metric(label="MI SALDO ESTIMADO (TOTAL_MXN)", value=f"${total_mxn_estimado:,.2f}", delta=f"Faltan ${max(meta_mxn - total_mxn_estimado, 0):,.2f}")
+
+# Simulación de Ganancias Proyectadas (Chido)
+col3, col4 = st.columns(2)
+with col3:
+    st.metric("GANANCIA HOY (SIMULADO)", "$150.00 MXN", "+0.1%")
+with col4:
+    st.metric("GANANCIA MES (SIMULADO)", "$3,200.00 MXN", "+2.5%")
+
+st.markdown("<h4 style='text-align:center; color:white30;'>OPERANDO 24/7 EN LA BLOCKCHAIN</h4>", unsafe_allow_html=True)
