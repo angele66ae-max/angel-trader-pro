@@ -82,3 +82,27 @@ def main(page: ft.Page):
 # CAMBIO: Ahora usamos ft.run() en lugar de ft.app()
 if __name__ == "__main__":
     ft.run(main)
+def motor_ia():
+        precio_compra = 0
+        en_operacion = False
+        
+        while True:
+            p_actual = bot.obtener_precio()
+            if p_actual:
+                txt_precio.value = f"${p_actual:,.2f}"
+                
+                # --- LÓGICA DE TRADING ---
+                if not en_operacion:
+                    # Ejemplo: Si el precio baja de un umbral, COMPRA
+                    # Por ahora lo dejamos manual con el botón, pero aquí
+                    # programaremos la detección de "caídas" de precio.
+                    txt_status.value = "🤖 IA: Analizando punto de entrada..."
+                else:
+                    # Si ya compró, calcula una ganancia del 0.5%
+                    meta = precio_compra * 1.005
+                    if p_actual >= meta:
+                        txt_status.value = f"🚀 ¡META ALCANZADA! Vendiendo en ${p_actual:,.2f}"
+                        # Aquí ejecutaría bot.vender_btc()
+                
+                page.update()
+            time.sleep(2)
