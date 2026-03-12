@@ -5,132 +5,121 @@ import mplfinance as mpf
 from io import BytesIO
 from datetime import datetime
 
-# --- SHARK AUTH ---
-API_KEY = st.secrets.get("BITSO_API_KEY", "").strip()
-API_SECRET = st.secrets.get("BITSO_API_SECRET", "").strip()
+# --- CONFIGURACIÓN DE SEGURIDAD (SHARK MODE) ---
+# Limpieza profunda de llaves para evitar el error 'error'
+BITSO_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
+BITSO_SECRET = str(st.secrets.get("BITSO_API_SECRET", "")).strip()
 
-st.set_page_config(layout="wide", page_title="SHARK TANK | WALLET")
+st.set_page_config(layout="wide", page_title="SHARK TANK | PORTFOLIO")
 
-# --- TRADINGVIEW DARK STYLE ---
+# Estilo TradingView Dark
 st.markdown("""
     <style>
-    .stApp { background: #0e1117; color: #e0e0e0; }
-    .stMetric { background: #1c2128; border: 1px solid #30363d; border-radius: 8px; padding: 15px; }
-    h1, h2 { color: #2962ff !important; }
-    .auth-card { background: #2d1111; border: 1px solid #ff4b4b; padding: 15px; border-radius: 5px; color: #ffafaf; }
+    .stApp { background: #0b0e14; color: #d1d4dc; }
+    .stMetric { background: #161a25; border: 1px solid #2a2e39; border-radius: 8px; }
+    h1, h2, h3 { color: #2962ff !important; font-family: 'Trebuchet MS', sans-serif; }
+    .status-box { padding: 20px; border-radius: 10px; margin-bottom: 20px; border: 1px solid #2a2e39; }
     </style>
     """, unsafe_allow_html=True)
 
-class SharkEngine:
+class SharkBot:
     def __init__(self):
-        self.base = "https://api.bitso.com"
+        self.url = "https://api.bitso.com"
 
     def get_price(self, book):
         try:
-            r = requests.get(f"{self.base}/v3/ticker/?book={book}").json()
+            r = requests.get(f"{self.url}/v3/ticker/?book={book}", timeout=5).json()
             return float(r['payload']['last'])
         except: return 0.0
 
-    def get_balances(self):
-        if not API_KEY or not API_SECRET: return None, "KEYS_NOT_FOUND"
-        path = "/v3/balances/"
+    def fetch_balances(self):
+        if not BITSO_KEY or not BITSO_SECRET:
+            return None, "Faltan llaves en Streamlit Secrets"
+        
         nonce = str(int(time.time() * 1000))
+        path = "/v3/balances/"
+        # Firma ultra limpia
         message = nonce + "GET" + path
-        signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-        headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
+        signature = hmac.new(BITSO_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
+        
+        headers = {
+            'Authorization': f'Bitso {BITSO_KEY}:{nonce}:{signature}',
+            'Content-Type': 'application/json'
+        }
+        
         try:
-            r = requests.get(self.base + path, headers=headers, timeout=10)
-            data = r.json()
-            if r.status_code == 200:
-                return data['payload']['balances'], "OK"
+            response = requests.get(self.url + path, headers=headers, timeout=10)
+            res_data = response.json()
+            if response.status_code == 200:
+                return res_data['payload']['balances'], "SUCCESS"
             else:
-                return None, f"BITSO_ERROR: {data['error']['message']}"
+                return None, res_data.get('error', {}).get('message', 'Error desconocido')
         except Exception as e:
-            return None, f"CONN_ERROR: {str(e)}"
+            return None, f"Error de Red: {str(e)}"
 
-bot = SharkEngine()
-p_usd_mxn = bot.get_price("usd_mxn") or 18.25
+bot = SharkBot()
+st.title("🦈 SHARK TANK: MY INVESTMENTS")
 
-st.title("🦈 SHARK TANK: PORTFOLIO TRACKER")
-
-# --- STATUS CHECK ---
-bal_data, status = bot.get_balances()
-
-if status != "OK":
-    st.markdown(f"""
-    <div class="auth-card">
-        <h4>🚨 ACCESO DENEGADO (AUTH_ERROR)</h4>
-        <p>Bitso no reconoce tus llaves. Sigue estos pasos para arreglarlo:</p>
-        <ul>
-            <li>1. Ve a <b>Bitso > Perfil > API</b>.</li>
-            <li>2. Borra tus llaves actuales y crea unas <b>NUEVAS</b>.</li>
-            <li>3. Asegúrate de marcar la casilla: <b>"Consultar saldos" (Account Balances)</b>.</li>
-            <li>4. Copia y pega en Streamlit Secrets sin dejar espacios al final.</li>
-        </ul>
-        <small>Error detectado: {status}</small>
-    </div>
-    """, unsafe_allow_html=True)
+# --- MONITOR DE PRECIOS ---
+p_usd = bot.get_price("usd_mxn") or 18.20
+assets = ["btc_mxn", "eth_mxn", "usd_mxn"]
+t_cols = st.columns(3)
+for i, a in enumerate(assets):
+    t_cols[i].metric(a.split('_')[0].upper(), f"${bot.get_price(a):,.2f} MXN")
 
 st.divider()
 
-# --- TABLA DE BILLETERA ---
-st.subheader("📁 My Assets (Crypto & Cash)")
-total_mxn = 0.0
+# --- BILLETERA Y DATOS ---
+bal, status = bot.fetch_balances()
 
-if status == "OK":
+if status == "SUCCESS":
+    st.subheader("📂 Real-Time Wallet (Crypto & USD)")
     rows = []
-    for b in bal_data:
+    total_mxn = 0.0
+    for b in bal:
         qty = float(b['total'])
         if qty > 0.00000001:
             coin = b['currency'].upper()
-            # Calcular precios
-            if coin == 'MXN': p_mxn = 1.0
-            else:
-                p_mxn = bot.get_price(f"{coin.lower()}_mxn")
-                if p_mxn == 0: p_mxn = bot.get_price(f"{coin.lower()}_usd") * p_usd_mxn
+            price = 1.0 if coin == 'MXN' else bot.get_price(f"{coin.lower()}_mxn")
+            if price == 0: price = bot.get_price(f"{coin.lower()}_usd") * p_usd
             
-            val_mxn = qty * p_mxn
-            val_usd = val_mxn / p_usd_mxn
+            val_mxn = qty * price
             total_mxn += val_mxn
-            
             rows.append({
-                "ASSET": coin,
-                "TOTAL BALANCE": f"{qty:.8f}",
-                "VALUE (MXN)": f"${val_mxn:,.2f}",
-                "VALUE (USD)": f"${val_usd:,.2f}"
+                "MONEDA": coin,
+                "CANTIDAD": f"{qty:.8f}",
+                "VALOR MXN": f"${val_mxn:,.2f}",
+                "VALOR USD": f"${(val_mxn/p_usd):,.2f}"
             })
     
     if rows:
         st.table(pd.DataFrame(rows))
+        
+        # Resumen final
+        c1, c2 = st.columns(2)
+        c1.metric("TOTAL PORTAFOLIO (MXN)", f"${total_mxn:,.2f}")
+        
+        progreso = min((total_mxn/p_usd) / 10000, 1.0)
+        st.write(f"**Progreso hacia $10,000 USD: {progreso*100:.4f}%**")
+        st.progress(progreso)
     else:
-        st.info("No balances found. Make sure you have at least $1 MXN in Bitso.")
+        st.info("No tienes saldos activos en Bitso.")
 else:
-    st.warning("⚠️ Wallet data hidden due to connection error.")
+    st.error(f"⚠️ ERROR DE AUTENTICACIÓN: {status}")
+    st.markdown("""
+    **¿Cómo arreglarlo?**
+    1. Asegúrate de que en Bitso el permiso sea **"Consultar Saldos"**.
+    2. En Streamlit Secrets, revisa que no haya comillas extras o espacios.
+    3. Si el error persiste, intenta generar una API KEY nueva **sin límite de IP**.
+    """)
 
-# --- GRÁFICA Y MÉTRICAS ---
+# --- GRÁFICA ---
 st.divider()
-c_chart, c_metrics = st.columns([2, 1])
-
-with c_chart:
-    st.subheader("📉 Market Trend")
-    # Generamos velas según precio actual para que la gráfica tenga sentido
-    p_now = bot.get_price("btc_mxn") or 1230000
-    df = pd.DataFrame({
-        'Open': [p_now] * 30, 'High': [p_now * 1.002] * 30, 
-        'Low': [p_now * 0.998] * 30, 'Close': [p_now * 1.001] * 30, 'Volume': [100] * 30
-    })
-    df.index = pd.date_range(start=datetime.now(), periods=30, freq='15min')
-    mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', inherit=True)
-    s = mpf.make_mpf_style(marketcolors=mc, gridcolor='#363a45', facecolor='#0e1117', edgecolor='#363a45')
-    buf = BytesIO(); mpf.plot(df, type='candle', style=s, figratio=(16,8), savefig=dict(fname=buf, dpi=100))
-    st.image(buf, use_container_width=True)
-
-with c_metrics:
-    st.subheader("🏆 Total Wealth")
-    st.metric("NET WORTH (MXN)", f"${total_mxn:,.2f}")
-    st.metric("NET WORTH (USD)", f"${(total_mxn / p_usd_mxn):,.2f}")
-    
-    target_usd = 10000
-    progress = min((total_mxn / p_usd_mxn) / target_usd, 1.0)
-    st.write(f"Goal to $10k USD: {progress*100:.4f}%")
-    st.progress(progress)
+st.subheader("📈 Análisis de Tendencia (BTC)")
+p_btc = bot.get_price("btc_mxn") or 1230000
+df = pd.DataFrame({'Open': [p_btc]*20, 'High': [p_btc*1.002]*20, 'Low': [p_btc*0.998]*20, 'Close': [p_btc]*20, 'Volume': [100]*20})
+df.index = pd.date_range(start=datetime.now(), periods=20, freq='15min')
+mc = mpf.make_marketcolors(up='#26a69a', down='#ef5350', inherit=True)
+s = mpf.make_mpf_style(marketcolors=mc, gridcolor='#2a2e39', facecolor='#0b0e14', edgecolor='#2a2e39')
+buf = BytesIO(); mpf.plot(df, type='candle', style=s, figratio=(16,6), savefig=dict(fname=buf, dpi=100))
+st.image(buf, use_container_width=True)
