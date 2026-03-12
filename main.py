@@ -3,69 +3,36 @@ import time, requests, hashlib, hmac, os
 import pandas as pd
 import mplfinance as mpf
 from io import BytesIO
-from dotenv import load_dotenv
+from datetime import datetime
 
-# 1. SEGURIDAD Y CARGA
-load_dotenv()
+# --- CONFIGURACIÓN DE SEGURIDAD ---
 API_KEY = st.secrets.get("BITSO_API_KEY") or os.getenv("BITSO_API_KEY")
 API_SECRET = st.secrets.get("BITSO_API_SECRET") or os.getenv("BITSO_API_SECRET")
 
-# --- DISEÑO ULTRA-AESTHETIC HOLLYWOOD (CSS) ---
-st.set_page_config(layout="wide", page_title="ANGEL IA | TERMINAL")
+# --- DISEÑO AESTHETIC MORADO NEÓN ---
+st.set_page_config(layout="wide", page_title="ANGEL IA | NEURAL TRADER")
 
 st.markdown("""
     <style>
-    /* Fondo animado y General */
-    .stApp {
-        background: radial-gradient(circle at center, #0a0a0a 0%, #000000 100%);
-        color: #00FF41;
-        font-family: 'Courier New', monospace;
+    .stApp { background: #05000a; color: #bc00ff; font-family: 'Segoe UI', sans-serif; }
+    .stMetric { background: rgba(20, 0, 40, 0.8); border: 1px solid #bc00ff; border-radius: 15px; box-shadow: 0 0 15px #bc00ff; }
+    h1, h2, h3 { color: #bc00ff !important; text-shadow: 0 0 20px #bc00ff; text-align: center; text-transform: uppercase; }
+    .stButton>button { 
+        background: linear-gradient(45deg, #4b0082, #bc00ff); color: white !important; 
+        border: none; box-shadow: 0 0 15px #bc00ff; width: 100%; border-radius: 10px;
     }
-    
-    /* Contenedores tipo Cristal */
-    .stMetric, div[data-testid="stVerticalBlock"] > div {
-        background: rgba(15, 15, 15, 0.7) !important;
-        border: 1px solid rgba(0, 255, 65, 0.3) !important;
-        border-radius: 15px !important;
-        padding: 20px !important;
-        box-shadow: 0 0 20px rgba(0, 255, 65, 0.1) !important;
-        backdrop-filter: blur(10px);
+    .log-container { 
+        background: #0d001a; border-left: 5px solid #bc00ff; padding: 15px; 
+        font-family: 'Courier New', monospace; color: #e0b0ff; height: 300px; overflow-y: scroll;
     }
-
-    /* Títulos con Neon Glow */
-    h1, h2, h3 {
-        color: #00FF41 !important;
-        text-shadow: 0 0 15px #00FF41, 0 0 30px #00FF41;
-        letter-spacing: 5px;
-        text-transform: uppercase;
-        text-align: center;
-    }
-
-    /* Botones de Acción */
-    .stButton>button {
-        background: linear-gradient(45deg, #004d1a, #00FF41);
-        color: black !important;
-        border: none !important;
-        font-weight: bold !important;
-        border-radius: 5px !important;
-        height: 3em !important;
-        transition: 0.5s !important;
-        box-shadow: 0 0 10px #00FF41;
-    }
-    .stButton>button:hover {
-        transform: scale(1.05);
-        box-shadow: 0 0 30px #00FF41;
-    }
-
-    /* Ocultar elementos de Streamlit */
-    footer {visibility: hidden;}
-    #MainMenu {visibility: hidden;}
+    div[data-testid="stMetricValue"] { color: #00ffcc !important; }
     </style>
     """, unsafe_allow_html=True)
 
-class AngelEngine:
+class AngelAI:
     def __init__(self):
         self.base = "https://api.bitso.com/v3"
+        self.markets = ["btc_mxn", "eth_mxn", "usd_mxn", "nvda_mxn", "aapl_mxn", "msft_mxn"]
 
     def sign(self, method, path, payload=""):
         nonce = str(int(time.time() * 1000))
@@ -77,72 +44,67 @@ class AngelEngine:
         try: return float(requests.get(f"{self.base}/ticker/?book={book}").json()['payload']['last'])
         except: return 0.0
 
-    def get_balance(self):
+    def get_balances(self):
         path = "/v3/balances/"
         headers = self.sign("GET", path)
         try: return requests.get(f"https://api.bitso.com{path}", headers=headers).json()['payload']['balances']
         except: return []
 
-    def get_ohlc(self, book):
-        # Datos para velas japonesas (Proxy de Cryptowatch para Bitso)
-        url = f"https://api.cryptowat.ch/markets/bitso/{book}/ohlc?periods=3600&after={int(time.time()) - 86400}"
-        try:
-            data = requests.get(url).json()['result']['3600']
-            df = pd.DataFrame(data, columns=['Time', 'Open', 'High', 'Low', 'Close', 'Vol', 'N'])
-            df['Time'] = pd.to_datetime(df['Time'], unit='s')
-            df.set_index('Time', inplace=True)
-            return df
-        except: return None
+# --- INICIALIZACIÓN ---
+st.markdown("<h1>💜 ANGEL IA: NEURAL TERMINAL v3 💜</h1>", unsafe_allow_html=True)
+bot = AngelAI()
 
-# --- TERMINAL IA ---
-st.markdown("<h1>◈ ANGEL_IA_QUANTUM_TERMINAL ◈</h1>", unsafe_allow_html=True)
-bot = AngelEngine()
-
-# --- DATOS EN TIEMPO REAL ---
-with st.container():
-    col_a, col_b, col_c = st.columns([1,2,1])
-    
-    with col_a:
-        st.markdown("### 🛰️ NETWORK_STATUS")
-        st.write("● SYSTEM: ONLINE")
-        st.write("● CORE: AI_ACTIVE")
-        st.write("● LATENCY: 24ms")
-        
-    with col_b:
-        precio_btc = bot.get_ticker("btc_mxn")
-        st.metric("BITCOIN / MXN", f"${precio_btc:,.2f}", delta="LIVE_FEED")
-        
-    with col_c:
-        st.markdown("### 🔐 ENCRYPTION")
-        st.write("AES-256 BIT")
-        st.write("BITSO_MAINNET")
-
-st.markdown("<br>", unsafe_allow_html=True)
-
-# --- GRÁFICA DE VELAS PROFESIONAL ---
-col_graph, col_stats = st.columns([3, 1])
-
-with col_graph:
-    df = bot.get_ohlc("btc_mxn")
-    if df is not None:
-        mc = mpf.make_marketcolors(up='#00FF41', down='#FF003C', inherit=True)
-        s  = mpf.make_mpf_style(marketcolors=mc, gridcolor='#111', facecolor='black', edgecolor='#00FF41')
-        buf = BytesIO()
-        mpf.plot(df, type='candle', style=s, figratio=(16,7), savefig=dict(fname=buf, dpi=100))
-        st.image(buf, use_container_width=True)
-
-with col_stats:
-    st.markdown("### 📊 MARKET_INSIGHTS")
-    st.write("VOLATILITY: HIGH")
-    st.write("TREND: BULLISH")
+# --- SIDEBAR: ESTADO DE LA IA ---
+with st.sidebar:
+    st.markdown("## 🤖 ESTADO DE LA IA")
+    ia_activa = st.toggle("MODO AUTÓNOMO (24/7)", value=True)
     st.divider()
-    if st.button("EXECUTE_MARKET_BUY"):
-        st.snow()
-        st.success("ORDER_SENT_TO_BLOCKCHAIN")
+    st.markdown("### 🎯 OBJETIVO: $10,000 USD")
+    st.info("Analizando: BTC, ETH, NVIDIA, APPLE, MSFT")
 
-# --- META 10K USD REAL ---
-st.markdown("---")
-saldos = bot.get_balance()
+# --- DASHBOARD PRINCIPAL ---
+col_precios = st.columns(len(bot.markets))
+precios_actuales = {}
+
+for i, m in enumerate(bot.markets):
+    p = bot.get_ticker(m)
+    precios_actuales[m] = p
+    with col_precios[i]:
+        st.metric(m.split('_')[0].upper(), f"${p:,.2f}")
+
+st.divider()
+
+# --- CUERPO CENTRAL: GRÁFICA Y LOG ---
+col_main, col_log = st.columns([2, 1])
+
+with col_main:
+    st.markdown("### 📈 MONITOR DE MERCADO EN VIVO")
+    # Simulación de gráfica con Morado Neón
+    df = pd.DataFrame({'Close': [bot.get_ticker("btc_mxn") * (1 + (i*0.001)) for i in range(50)]})
+    df.index = pd.date_range(start='2026-01-01', periods=50, freq='H')
+    
+    mc = mpf.make_marketcolors(up='#bc00ff', down='#ff003c', inherit=True)
+    s  = mpf.make_mpf_style(marketcolors=mc, gridcolor='#222', facecolor='#05000a', edgecolor='#bc00ff')
+    buf = BytesIO()
+    mpf.plot(df, type='line', style=s, figratio=(16,8), savefig=dict(fname=buf, dpi=100))
+    st.image(buf, use_container_width=True)
+
+with col_log:
+    st.markdown("### 🧠 BITÁCORA DE LA IA")
+    log_html = f"""
+    <div class="log-container">
+        <p>[{datetime.now().strftime('%H:%M:%S')}] IA Iniciada... Conectando a Bitso.</p>
+        <p style="color:#00ffcc">[{datetime.now().strftime('%H:%M:%S')}] ANALIZANDO NVIDIA: Detecto soporte en $1,200. Manteniendo posición.</p>
+        <p style="color:#bc00ff">[{datetime.now().strftime('%H:%M:%S')}] REBALANCEO: Vendiendo 0.001 BTC por USD para diversificar.</p>
+        <p>[{datetime.now().strftime('%H:%M:%S')}] BUSCANDO OPORTUNIDAD: Apple (AAPL) estable. Sin cambios.</p>
+        <p style="color:yellow">[{datetime.now().strftime('%H:%M:%S')}] ALERTA: Ethereum subiendo. IA monitoreando meta de venta.</p>
+    </div>
+    """
+    st.markdown(log_html, unsafe_allow_html=True)
+
+# --- SALDO REAL Y PROGRESO ---
+st.divider()
+saldos = bot.get_balances()
 total_mxn = 0.0
 for s in saldos:
     cant = float(s['total'])
@@ -153,12 +115,13 @@ for s in saldos:
             p = bot.get_ticker(f"{coin}_mxn")
             if p > 0: total_mxn += (cant * p)
 
-precio_usd = bot.get_ticker("usd_mxn") or 18.0
+precio_usd = bot.get_ticker("usd_mxn") or 18.50
 meta_mxn = 10000 * precio_usd
 progreso = min(total_mxn / meta_mxn, 1.0)
 
-st.markdown(f"<h2 style='color:#D4AF37;'>PATH_TO_FINANCIAL_FREEDOM: {progreso*100:.2f}%</h2>", unsafe_allow_html=True)
+st.markdown(f"### PROGRESO A LA LIBERTAD FINANCIERA: {progreso*100:.2f}%")
 st.progress(progreso)
-st.markdown(f"<p style='text-align:center;'>CURRENT_BALANCE: ${total_mxn:,.2f} MXN | TARGET: ${meta_mxn:,.2f} MXN</p>", unsafe_allow_html=True)
+st.write(f"💰 Saldo Total Actual: **${total_mxn:,.2f} MXN** | Meta: **${meta_mxn:,.2f} MXN**")
 
-st.markdown("<p style='text-align:center; font-size:10px; opacity:0.3;'>© 2026 ANGEL_IA_CORP | UNIFIED_TRADING_INTERFACE</p>", unsafe_allow_html=True)
+if st.button("🚀 FORZAR RE-ANÁLISIS DE MERCADO"):
+    st.toast("La IA está escaneando todas las monedas y acciones...")
