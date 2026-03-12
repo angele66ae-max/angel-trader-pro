@@ -1,2 +1,0 @@
-API_KEY = "ifZOXIGEee"
-API_SECRET = "504f48cf1981f005fee3352eaf3bf8a3"
