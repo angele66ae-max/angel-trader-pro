@@ -9,23 +9,25 @@ from datetime import datetime
 API_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
 API_SECRET = str(st.secrets.get("BITSO_API_SECRET", "")).strip()
 
-st.set_page_config(layout="wide", page_title="SHARK TERMINAL v6.2")
+st.set_page_config(layout="wide", page_title="SHARK TERMINAL v6.3")
 
-# Estilo Cyberpunk
+# --- ESTILO CYBERPUNK ---
 st.markdown("""
     <style>
-    .stApp { background-color: #05070a; color: #00ff41; font-family: 'Courier New', monospace; }
-    .stMetric { background: #0d1117; border: 1px solid #00d4ff; border-radius: 5px; }
-    .status-error { border: 2px solid #ff003c; padding: 20px; color: #ff003c; font-weight: bold; }
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+    .stApp { background-color: #05070a; color: #00ff41; font-family: 'JetBrains Mono', monospace; }
+    div[data-testid="stMetricValue"] { color: #00ff41 !important; text-shadow: 0 0 10px #00ff41; }
+    .stTable { background: rgba(0, 20, 40, 0.8); border: 1px solid #00d4ff; color: #00ff41; }
+    h1, h2 { color: #00d4ff !important; text-transform: uppercase; letter-spacing: 2px; }
     </style>
     """, unsafe_allow_html=True)
 
-def get_bitso_balances():
-    if not API_KEY or not API_SECRET:
-        return None, "ERROR: No hay llaves en Secrets"
+def get_data():
+    if not API_KEY: return None, "Faltan llaves"
     
-    nonce = str(int(time.time() * 1000))
+    # URL CORREGIDA (Sin punto final)
     path = "/v3/balances/"
+    nonce = str(int(time.time() * 1000))
     message = nonce + "GET" + path
     signature = hmac.new(API_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
     
@@ -33,37 +35,75 @@ def get_bitso_balances():
     
     try:
         r = requests.get(f"https://api.bitso.com{path}", headers=headers, timeout=10)
-        # ESTO ES LO IMPORTANTE: Nos dirá el error real si falla
         if r.status_code == 200:
             return r.json()['payload']['balances'], "OK"
-        else:
-            return None, f"CÓDIGO {r.status_code}: {r.text}"
+        return None, f"Bitso Error {r.status_code}: {r.text}"
     except Exception as e:
-        return None, f"SISTEMA CAÍDO: {str(e)}"
+        return None, str(e)
 
-st.title("🦈 SHARK SYSTEM v6.2")
+def get_ticker(book):
+    try:
+        r = requests.get(f"https://api.bitso.com/v3/ticker/?book={book}").json()
+        return float(r['payload']['last'])
+    except: return 0.0
 
-# --- LÓGICA DE BILLETERA ---
-balances, status = get_bitso_balances()
+st.title("🦈 SHARK SYSTEM v6.3")
+p_usd = get_ticker("usd_mxn") or 17.80
+
+# --- MERCADO ---
+c1, c2, c3 = st.columns(3)
+c1.metric("₿ BTC", f"${get_ticker('btc_mxn'):,.0f} MXN")
+c2.metric("Ξ ETH", f"${get_ticker('eth_mxn'):,.0f} MXN")
+c3.metric("💵 USD", f"${p_usd:,.2f} MXN")
+
+st.divider()
+
+# --- BILLETERA (TU APARTADO NUEVO) ---
+st.header("💰 MI BILLETERA CRYPTO")
+balances, status = get_data()
+total_mxn = 0.0
 
 if status == "OK":
-    st.success("✅ ACCESO CONCEDIDO: CONEXIÓN ESTABLE")
-    # ... (aquí va el resto de tu tabla de criptos)
-    df_bal = pd.DataFrame([b for b in balances if float(b['total']) > 0])
-    st.table(df_bal[['currency', 'total']])
-else:
-    st.markdown(f'<div class="status-error">🚨 ERROR CRÍTICO: {status}</div>', unsafe_allow_html=True)
+    wallet_list = []
+    for b in balances:
+        cant = float(b['total'])
+        if cant > 0.00000001:
+            coin = b['currency'].upper()
+            # Precio para conversión
+            price = 1.0 if coin == "MXN" else get_ticker(f"{coin.lower()}_mxn")
+            if price == 0: price = get_ticker(f"{coin.lower()}_usd") * p_usd
+            
+            valor_m = cant * price
+            total_mxn += valor_m
+            
+            wallet_list.append({
+                "MONEDA": coin,
+                "CANTIDAD": f"{cant:.8f}",
+                "VALOR MXN": f"${valor_m:,.2f}",
+                "VALOR USD": f"${(valor_m/p_usd):,.2f}"
+            })
     
-    st.markdown("""
-    ### 🛠 MANUAL DE REPARACIÓN:
-    1. **IP Whitelist:** En Bitso, al crear la API Key, asegúrate de que **NO** tenga ninguna IP anotada. Déjalo en blanco.
-    2. **Permisos:** La llave debe tener activado **"Account Balances"** (Consultar saldos).
-    3. **Secrets:** En Streamlit, asegúrate de que se vea así exactamente (sin comillas):
-       `BITSO_API_KEY = su_llave_aqui`
-       `BITSO_API_SECRET = su_secreto_aqui`
-    """)
+    if wallet_list:
+        st.table(pd.DataFrame(wallet_list))
+        
+        # Resumen Final
+        st.subheader("📊 RESUMEN TOTAL")
+        r1, r2 = st.columns(2)
+        r1.metric("VALOR TOTAL MXN", f"${total_mxn:,.2f}")
+        
+        prog = min((total_mxn/p_usd)/10000, 1.0)
+        st.write(f"**META $10K USD: {prog*100:.4f}%**")
+        st.progress(prog)
+    else:
+        st.info("No se detectaron fondos activos.")
+else:
+    st.error(f"FALLO DE AUTENTICACIÓN: {status}")
 
-# Gráfica rápida para no perder el estilo
-st.subheader("📈 LIVE_MARKET_DATA")
-p_usd = requests.get("https://api.bitso.com/v3/ticker/?book=usd_mxn").json()['payload']['last']
-st.metric("USD/MXN", f"${p_usd} MXN")
+# --- GRÁFICA ---
+st.divider()
+st.subheader("📉 DATA_STREAM")
+curr_btc = get_ticker("btc_mxn")
+df = pd.DataFrame({'Open': [curr_btc]*10, 'High': [curr_btc*1.01]*10, 'Low': [curr_btc*0.99]*10, 'Close': [curr_btc]*10})
+df.index = pd.date_range(start=datetime.now(), periods=10, freq='H')
+mc = mpf.make_marketcolors(up='#00ff41', down='#ff003c', inherit=True)
+s = mpf.make_mpf_style(marketcolors=mc, gridcolor='#0d111
