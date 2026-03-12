@@ -120,3 +120,12 @@ progreso = min(total_mxn / meta_mxn, 1.0) if meta_mxn > 0 else 0
 st.markdown(f"### 🚀 OBJETIVO $10,000 USD: {progreso*100:.4f}%")
 st.progress(progreso)
 st.write(f"💵 SALDO REAL: **${total_mxn:,.2f} MXN** | TARGET: **${meta_mxn:,.2f} MXN**")
+# --- SECCIÓN DE PROGRESO ---
+st.divider()
+# Asegúrate de que diga p_usd_mxn (con 'n')
+meta_mxn = 10000 * p_usd_mxn 
+progreso = min(total_mxn / meta_mxn, 1.0) if meta_mxn > 0 else 0
+
+st.markdown(f"### 🚀 OBJETIVO $10,000 USD: {progreso*100:.4f}%")
+st.progress(progreso)
+st.write(f"💵 SALDO REAL: **${total_mxn:,.2f} MXN** | TARGET: **${meta_mxn:,.2f} MXN**")
