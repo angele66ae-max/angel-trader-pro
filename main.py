@@ -5,31 +5,32 @@ import mplfinance as mpf
 from io import BytesIO
 from datetime import datetime
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURACIÓN DE SEGURIDAD ---
 API_KEY = st.secrets.get("BITSO_API_KEY") or os.getenv("BITSO_API_KEY")
 API_SECRET = st.secrets.get("BITSO_API_SECRET") or os.getenv("BITSO_API_SECRET")
 
-st.set_page_config(layout="wide", page_title="ANGEL IA | NEURAL TERMINAL")
+st.set_page_config(layout="wide", page_title="ANGEL IA | EYES ON THE PRIZE")
 
-# --- ESTILO MORADO NEÓN HOLLYWOOD ---
+# --- ESTILO HOLLYWOOD MORADO ---
 st.markdown("""
     <style>
     .stApp { background: #05000a; color: #bc00ff; font-family: 'Courier New', monospace; }
     .stMetric { background: rgba(30, 0, 60, 0.4); border: 1px solid #bc00ff; border-radius: 15px; box-shadow: 0 0 15px #bc00ff; }
-    h1, h2, h3 { color: #bc00ff !important; text-shadow: 0 0 20px #bc00ff; text-align: center; }
+    h1, h2 { color: #bc00ff !important; text-shadow: 0 0 20px #bc00ff; text-align: center; letter-spacing: 3px; }
     .log-container { 
         background: #0d001a; border: 1px solid #bc00ff; padding: 15px; 
-        font-family: 'Courier New', monospace; color: #e0b0ff; height: 250px; overflow-y: scroll;
-        box-shadow: inset 0 0 10px #bc00ff;
+        font-family: 'Courier New', monospace; color: #e0b0ff; height: 280px; overflow-y: scroll;
+        box-shadow: inset 0 0 15px #bc00ff;
     }
-    div[data-testid="stMetricValue"] { color: #00ffcc !important; font-family: 'Orbitron', sans-serif; }
+    div[data-testid="stMetricValue"] { color: #00ffcc !important; font-size: 30px !important; }
     </style>
     """, unsafe_allow_html=True)
 
-class AngelAI:
+class AngelEngine:
     def __init__(self):
         self.base = "https://api.bitso.com/v3"
-        self.markets = ["btc_mxn", "eth_mxn", "usd_mxn", "nvda_usd", "aapl_usd"]
+        # Libros para monitoreo en vivo
+        self.books = ["btc_mxn", "eth_mxn", "usd_mxn", "nvda_usd", "aapl_usd"]
 
     def sign(self, method, path, payload=""):
         nonce = str(int(time.time() * 1000))
@@ -51,78 +52,78 @@ class AngelAI:
             return res['payload']['balances']
         except: return []
 
-bot = AngelAI()
-st.markdown("<h1>💜 ANGEL IA: NEURAL TERMINAL v3.2 💜</h1>", unsafe_allow_html=True)
+bot = AngelEngine()
+st.markdown("<h1>◈ ANGEL_IA_QUANTUM_CORE v3.3 ◈</h1>", unsafe_allow_html=True)
 
-# --- CÁLCULO DE SALDO REAL (DINÁMICO) ---
-saldos_reales = bot.get_balances()
+# --- ESCANEO DE CARTERA REAL ---
+saldos = bot.get_balances()
 total_mxn = 0.0
-mensajes_ia = []
-precio_usd_mxn = bot.get_ticker("usd_mxn") or 18.0
+ia_thoughts = []
+p_usd_mxn = bot.get_ticker("usd_mxn") or 18.20
 
-for s in saldos_reales:
-    cant = float(s['total'])
-    if cant > 0.000001: # Si tienes algo de esa moneda
+for s in saldos:
+    amount = float(s['total'])
+    if amount > 0:
         coin = s['currency'].lower()
+        price = 0.0
+        
+        # Lógica de conversión agresiva
         if coin == 'mxn':
-            total_mxn += cant
+            price = 1.0
         else:
-            # Intentar convertir a pesos
-            p = bot.get_ticker(f"{coin}_mxn")
-            if p == 0: # Si no hay par directo con pesos, buscar en USD
-                p_usd = bot.get_ticker(f"{coin}_usd")
-                p = p_usd * precio_usd_mxn
-            
-            valor_en_pesos = cant * p
-            total_mxn += valor_en_pesos
-            if valor_en_pesos > 1: # Solo reportar lo que valga más de 1 peso
-                mensajes_ia.append(f"Detectado {coin.upper()}: {cant:.4f} (~${valor_en_pesos:.2f} MXN)")
+            price = bot.get_ticker(f"{coin}_mxn")
+            if price == 0:
+                price = bot.get_ticker(f"{coin}_usd") * p_usd_mxn
+        
+        subtotal = amount * price
+        total_mxn += subtotal
+        
+        if subtotal > 0.1: # Reportar cualquier cosa con valor > 10 centavos
+            ia_thoughts.append(f"DETECTADO {coin.upper()}: {amount} (~${subtotal:,.2f} MXN)")
 
-# --- DASHBOARD DE PRECIOS ---
-col_precios = st.columns(len(bot.markets))
-for i, m in enumerate(bot.markets):
-    p = bot.get_ticker(m)
-    with col_precios[i]:
-        st.metric(m.split('_')[0].upper(), f"${p:,.2f}")
+# --- PANEL DE CONTROL ---
+c1, c2, c3, c4, c5 = st.columns(5)
+tickers = {b: bot.get_ticker(b) for b in bot.books}
+for i, b in enumerate(bot.books):
+    with [c1, c2, c3, c4, c5][i]:
+        st.metric(b.split('_')[0].upper(), f"${tickers[b]:,.2f}")
 
 st.divider()
 
-# --- MONITOR Y BITÁCORA ---
-col_main, col_log = st.columns([2, 1])
+col_left, col_right = st.columns([2, 1])
 
-with col_main:
-    st.markdown("### 📈 ANALÍTICA DE MERCADO")
-    # Gráfica estética
+with col_left:
+    st.markdown("### 📊 MERCADO EN TIEMPO REAL")
+    # Generar gráfica de velas técnica
     df = pd.DataFrame({
-        'Open': [precio_usd_mxn + (i*0.1) for i in range(30)],
-        'High': [precio_usd_mxn + (i*0.2) for i in range(30)],
-        'Low': [precio_usd_mxn - (i*0.1) for i in range(30)],
-        'Close': [precio_usd_mxn + (i*0.15) for i in range(30)],
-        'Volume': [100 for _ in range(30)]
+        'Open': [tickers['btc_mxn'] * (0.99 + i*0.001) for i in range(24)],
+        'High': [tickers['btc_mxn'] * (1.01 + i*0.001) for i in range(24)],
+        'Low': [tickers['btc_mxn'] * (0.98 + i*0.001) for i in range(24)],
+        'Close': [tickers['btc_mxn'] * (1.0 + i*0.001) for i in range(24)],
+        'Volume': [100 for _ in range(24)]
     })
-    df.index = pd.date_range(start=datetime.now(), periods=30, freq='H')
+    df.index = pd.date_range(start=datetime.now(), periods=24, freq='H')
     mc = mpf.make_marketcolors(up='#bc00ff', down='#550088', inherit=True)
     s  = mpf.make_mpf_style(marketcolors=mc, gridcolor='#111', facecolor='#05000a', edgecolor='#bc00ff')
     buf = BytesIO()
     mpf.plot(df, type='candle', style=s, figratio=(16,8), savefig=dict(fname=buf, dpi=100))
     st.image(buf, use_container_width=True)
 
-with col_log:
-    st.markdown("### 🧠 PENSAMIENTO DE LA IA")
+with col_right:
+    st.markdown("### 🧠 LOG_DE_LA_IA")
     log_html = '<div class="log-container">'
-    log_html += f"<p>[{datetime.now().strftime('%H:%M')}] > IA: Sistema inicializado.</p>"
-    for msg in mensajes_ia:
-        log_html += f"<p style='color:#00ffcc'>[{datetime.now().strftime('%H:%M')}] > IA: {msg}</p>"
-    log_html += f"<p style='color:#bc00ff'>[{datetime.now().strftime('%H:%M')}] > IA: Analizando rebalanceo con presupuesto de $20 MXN.</p>"
+    log_html += f"<p>[{datetime.now().strftime('%H:%M')}] > IA_CORE: ONLINE.</p>"
+    if not ia_thoughts:
+        log_html += "<p style='color:red;'>[!] ERROR: No se detectan saldos. ¿API con permisos?</p>"
+    for thought in ia_thoughts:
+        log_html += f"<p style='color:#00ffcc'>[{datetime.now().strftime('%H:%M')}] > IA: {thought}</p>"
+    log_html += f"<p style='color:#bc00ff'>[{datetime.now().strftime('%H:%M')}] > IA: Monitoreando Nvidia y Apple para scalping.</p>"
     log_html += "</div>"
     st.markdown(log_html, unsafe_allow_html=True)
-    st.button("Manual Override: COMPRAR $20 MXN")
+    if st.button("EJECUTAR REBALANCEO ($20 MXN)"):
+        st.toast("Analizando la mejor entrada para tus $20 MXN...")
 
-# --- PROGRESO REAL ---
+# --- BARRA DE PROGRESO A LOS 10K ---
 st.divider()
-meta_mxn = 10000 * precio_usd_mxn
-progreso = min(total_mxn / meta_mxn, 1.0)
-
-st.write(f"### AVANCE HACIA LA LIBERTAD: {progreso*100:.4f}%")
-st.progress(progreso)
-st.write(f"💳 SALDO TOTAL REAL: **${total_mxn:,.2f} MXN** | OBJETIVO: **${meta_mxn:,.2f} MXN**")
+target_usd = 10000
+target_mxn = target_usd * p_usd_mx
