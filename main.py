@@ -1,44 +1,35 @@
 import streamlit as st
 import time
+import requests
 import hashlib
 import hmac
-import requests
 import pandas as pd
+import plotly.graph_objects as go
 
-# ---------------- CONFIG ----------------
+# ---------- CONFIG ----------
 
 st.set_page_config(
-    page_title="SHARK SYSTEM v10",
+    page_title="SHARK AI v11",
     layout="wide"
 )
 
-# --------- API KEYS ---------
+# ---------- API ----------
 
 API_KEY = st.secrets.get("BITSO_API_KEY", "")
 API_SECRET = st.secrets.get("BITSO_API_SECRET", "")
 
-# --------- ESTILO NEON ---------
+# ---------- ESTILO ----------
 
 st.markdown("""
 <style>
-
 .stApp{
-background-color:#040404;
+background-color:#050505;
 color:#00d4ff;
 }
-
-.neon-box{
-border:1px solid #bc13fe;
-padding:20px;
-border-radius:12px;
-background:#111;
-box-shadow:0 0 10px #bc13fe;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
-# --------- FUNCION BITSO ---------
+# ---------- BITSO REQUEST ----------
 
 def bitso_request(path):
 
@@ -60,26 +51,24 @@ def bitso_request(path):
 
     try:
 
-        r = requests.get(url, headers=headers, timeout=10)
+        r = requests.get(url, headers=headers)
 
         if r.status_code == 200:
             return r.json()
 
-        return None
-
     except:
-        return None
+        pass
 
+    return None
 
-# --------- PRECIO ---------
+# ---------- PRECIO ----------
 
 def get_price(book):
 
     try:
 
         r = requests.get(
-            f"https://api.bitso.com/v3/ticker/?book={book}",
-            timeout=10
+            f"https://api.bitso.com/v3/ticker/?book={book}"
         ).json()
 
         return float(r["payload"]["last"])
@@ -87,28 +76,62 @@ def get_price(book):
     except:
         return 0
 
+# ---------- OHLC ----------
 
-# --------- INTERFAZ ---------
+def get_candles():
 
-st.title("🦈 SHARK SYSTEM v10")
+    url = "https://api.bitso.com/v3/trades/?book=btc_mxn&limit=100"
 
-st.write("Protocolo activo | Nodo conectado")
+    r = requests.get(url).json()
 
-meta_suv = 1700000
+    trades = r["payload"]
+
+    df = pd.DataFrame(trades)
+
+    df["price"] = df["price"].astype(float)
+
+    df["date"] = pd.to_datetime(df["created_at"])
+
+    df = df.sort_values("date")
+
+    return df
+
+# ---------- RSI ----------
+
+def calculate_rsi(data, period=14):
+
+    delta = data.diff()
+
+    gain = delta.clip(lower=0)
+
+    loss = -1*delta.clip(upper=0)
+
+    avg_gain = gain.rolling(period).mean()
+
+    avg_loss = loss.rolling(period).mean()
+
+    rs = avg_gain / avg_loss
+
+    rsi = 100 - (100/(1+rs))
+
+    return rsi
+
+# ---------- INTERFAZ ----------
+
+st.title("🦈 SHARK AI v11")
+
+meta = 1700000
 
 col1, col2 = st.columns([1,2])
 
-# --------- PANEL API ---------
+# ---------- BALANCE ----------
 
 with col1:
 
-    st.subheader("📡 ESTADO DEL NODO")
+    st.subheader("📡 BITSO NODE")
 
     if API_KEY == "" or API_SECRET == "":
-
-        st.error("Configura BITSO_API_KEY y BITSO_API_SECRET en Secrets")
-
-        status_ok = False
+        st.error("Configura tus secrets")
 
     else:
 
@@ -116,97 +139,94 @@ with col1:
 
         if data:
 
-            st.success("🟢 Conectado a Bitso")
+            st.success("Conectado")
 
             balances = data["payload"]["balances"]
 
-            status_ok = True
+            total = 0
+            tabla = []
+
+            for b in balances:
+
+                qty = float(b["total"])
+
+                if qty > 0:
+
+                    coin = b["currency"].upper()
+
+                    price = 1 if coin=="MXN" else get_price(f"{coin.lower()}_mxn")
+
+                    valor = qty * price
+
+                    total += valor
+
+                    tabla.append({
+                        "Moneda": coin,
+                        "Cantidad": qty,
+                        "MXN": valor
+                    })
+
+            df = pd.DataFrame(tabla)
+
+            st.table(df)
+
+            progreso = min(total/meta,1)
+
+            st.metric("Saldo Total",f"${total:,.2f}")
+
+            st.progress(progreso)
 
         else:
 
-            st.error("🔴 No se pudo conectar a Bitso")
+            st.error("No se pudo conectar a Bitso")
 
-            status_ok = False
-
-
-# --------- BALANCE ---------
+# ---------- GRAFICO ----------
 
 with col2:
 
-    st.subheader("🎯 META SUV $1.7M")
+    st.subheader("📈 BTC ANALYSIS")
 
-    saldo_total = 0
-    tabla = []
+    df = get_candles()
 
-    if status_ok:
+    rsi = calculate_rsi(df["price"])
 
-        for b in balances:
+    fig = go.Figure()
 
-            qty = float(b["total"])
+    fig.add_trace(
+        go.Scatter(
+            x=df["date"],
+            y=df["price"],
+            mode="lines",
+            name="BTC"
+        )
+    )
 
-            if qty > 0:
+    st.plotly_chart(fig, use_container_width=True)
 
-                coin = b["currency"].upper()
+    rsi_actual = rsi.iloc[-1]
 
-                if coin == "MXN":
-                    price = 1
-                else:
-                    price = get_price(f"{coin.lower()}_mxn")
+    st.metric("RSI",round(rsi_actual,2))
 
-                valor = qty * price
+    if rsi_actual < 30:
+        st.success("🟢 IA SIGNAL: COMPRA")
 
-                saldo_total += valor
-
-                tabla.append({
-                    "Moneda": coin,
-                    "Cantidad": qty,
-                    "Valor MXN": f"${valor:,.2f}"
-                })
-
-        df = pd.DataFrame(tabla)
-
-        st.table(df)
-
-        progreso = min(saldo_total/meta_suv,1)
-
-        st.metric("Saldo Total",f"${saldo_total:,.2f} MXN")
-
-        st.progress(progreso)
-
-        faltante = meta_suv - saldo_total
-
-        if faltante > 0:
-
-            st.write(f"Faltan **${faltante:,.2f} MXN** para tu SUV")
-
-        else:
-
-            st.success("META ALCANZADA 🚀")
+    elif rsi_actual > 70:
+        st.error("🔴 IA SIGNAL: VENDE")
 
     else:
+        st.warning("🟡 IA SIGNAL: ESPERA")
 
-        st.warning("Esperando conexión con Bitso")
-
-
-# --------- TICKERS ---------
+# ---------- TICKERS ----------
 
 st.divider()
 
-st.subheader("📊 MERCADO")
-
 c1,c2,c3 = st.columns(3)
 
-btc = get_price("btc_mxn")
-eth = get_price("eth_mxn")
-usd = get_price("usd_mxn")
+c1.metric("BTC",f"${get_price('btc_mxn'):,.0f} MXN")
+c2.metric("ETH",f"${get_price('eth_mxn'):,.0f} MXN")
+c3.metric("USD",f"${get_price('usd_mxn'):,.2f} MXN")
 
-c1.metric("₿ BTC",f"${btc:,.0f} MXN")
-c2.metric("Ξ ETH",f"${eth:,.0f} MXN")
-c3.metric("💵 USD",f"${usd:,.2f} MXN")
-
-
-# --------- REFRESH ---------
+# ---------- REFRESH ----------
 
 time.sleep(30)
-
 st.rerun()
