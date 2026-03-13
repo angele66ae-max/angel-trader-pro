@@ -3,83 +3,110 @@ import time, requests, random
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(layout="wide", page_title="SHARK AI MONITOR", page_icon="🦈")
+# --- 1. CONFIGURACIÓN DE PANTALLA ANCHA ---
+st.set_page_config(layout="wide", page_title="SHARK AI PRESTIGE", page_icon="🦈")
 
-# --- ESTILO MEJORADO ---
+# --- 2. EL "LOOK" PROFESIONAL (CSS NEÓN) ---
 st.markdown("""
 <style>
-    .log-container {
-        background-color: rgba(0, 255, 0, 0.05);
-        border-left: 3px solid #00ff00;
-        padding: 10px;
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono&display=swap');
+    
+    /* Fondo Oscuro Total */
+    .stApp {
+        background-color: #050a0f;
+        color: #e0e0e0;
         font-family: 'JetBrains Mono', monospace;
-        font-size: 12px;
+    }
+    
+    /* Tarjetas de Cristal */
+    .glass-card {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(0, 234, 255, 0.2);
+        border-radius: 15px;
+        padding: 20px;
+        backdrop-filter: blur(10px);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+    }
+    
+    /* Título Neón Animado */
+    .neon-text {
+        font-family: 'Orbitron', sans-serif;
+        color: #00eaff;
+        text-shadow: 0 0 10px #00eaff, 0 0 20px #bc13fe;
+        text-align: center;
+        font-size: 38px;
+        margin-bottom: 30px;
+    }
+    
+    /* Caja de Logs de la IA */
+    .ai-brain {
+        background-color: #000;
+        border: 1px solid #00ff00;
+        color: #00ff00;
+        padding: 15px;
+        border-radius: 8px;
         height: 250px;
         overflow-y: auto;
+        font-size: 13px;
+        box-shadow: inset 0 0 10px #00ff00;
     }
-    .status-active { color: #00ff00; font-weight: bold; }
-    .status-wait { color: #ffaa00; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- INICIALIZACIÓN DE MEMORIA DE LA IA ---
+# --- 3. LÓGICA DE DATOS ---
 if "logs" not in st.session_state:
-    st.session_state.logs = [f"[{time.strftime('%H:%M:%S')}] SHARK AI Iniciado. Esperando órdenes..."]
+    st.session_state.logs = [f"[{time.strftime('%H:%M:%S')}] SISTEMA INICIADO. OPERADOR: PAVO FREE FIRE"]
 
-# --- FUNCIÓN DE ANÁLISIS REAL ---
-def shark_analysis(precio, rsi):
-    momento = time.strftime('%H:%M:%S')
-    if rsi < 30:
-        msg = f"[{momento}] 🟢 SEÑAL DE COMPRA: RSI en {rsi:.2f}. El mercado está barato."
-    elif rsi > 70:
-        msg = f"[{momento}] 🔴 SEÑAL DE VENTA: RSI en {rsi:.2f}. Posible caída próxima."
-    else:
-        msg = f"[{momento}] ⚪ ANALIZANDO: BTC a ${precio:,.0f}. Esperando cambio en RSI ({rsi:.2f})."
-    
-    # Guardar solo los últimos 10 eventos
-    st.session_state.logs.insert(0, msg)
-    st.session_state.logs = st.session_state.logs[:10]
+# Datos simulados de tu última captura
+precio_btc = 1278010
+rsi_val = 40.22
+meta_objetivo = 1700000
+progreso = (precio_btc / meta_objetivo) * 100
 
-# --- DATOS (Simulación mejorada para testeo) ---
-precio_actual = 1278010 # Valor de tu última captura
-rsi_actual = random.uniform(25, 75) # Esto vendrá de tu API Bitso
+def add_log(msg):
+    st.session_state.logs.insert(0, f"[{time.strftime('%H:%M:%S')}] {msg}")
+    st.session_state.logs = st.session_state.logs[:15]
 
-# --- INTERFAZ ---
-st.title("🦈 SHARK AI: CENTRO DE CONTROL")
+# --- 4. DISEÑO DE LA TERMINAL ---
+st.markdown('<div class="neon-text">🦈 SHARK AI: PRESTIGE CENTER</div>', unsafe_allow_html=True)
 
-col_main, col_side = st.columns([2, 1])
+# Fila 1: Métricas de Alto Impacto
+m1, m2, m3, m4 = st.columns(4)
+with m1:
+    st.markdown(f'<div class="glass-card"><p style="color:#00eaff">MARKET PRICE</p><h3>${precio_btc:,.0f}</h3><small>MXN</small></div>', unsafe_allow_html=True)
+with m2:
+    st.markdown(f'<div class="glass-card"><p style="color:#bc13fe">STRENGTH RSI</p><h3>{rsi_val}</h3><small>NEUTRAL</small></div>', unsafe_allow_html=True)
+with m3:
+    st.markdown(f'<div class="glass-card"><p style="color:#00ff00">AI ENGINE</p><h3>ACTIVE</h3><small>v10.5 CORE</small></div>', unsafe_allow_html=True)
+with m4:
+    st.markdown(f'<div class="glass-card"><p style="color:#00eaff">SUV GOAL</p><h3>{progreso:.1f}%</h3><progress value="{progreso}" max="100" style="width:100%"></progress></div>', unsafe_allow_html=True)
 
-with col_main:
-    # Gráfico de Mercado
-    fig = go.Figure(go.Scatter(y=[precio_actual-100, precio_actual+50, precio_actual], fill='tozeroy', line_color='#00eaff'))
-    fig.update_layout(height=400, margin=dict(l=0,r=0,t=0,b=0), template="plotly_dark")
+st.write("")
+
+# Fila 2: Gráfico y Pensamientos de la IA
+col_graph, col_logs = st.columns([2, 1])
+
+with col_graph:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.subheader("📈 LIVE ANALYSIS")
+    # Gráfico profesional con Plotly
+    fig = go.Figure(go.Scatter(y=[1275000, 1279000, 1278010], fill='tozeroy', line_color='#00eaff', line_width=4))
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300, 
+                      margin=dict(l=0,r=0,t=0,b=0), xaxis=dict(visible=False), yaxis=dict(gridcolor='rgba(255,255,255,0.05)'))
     st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-with col_side:
+with col_logs:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
     st.subheader("🕵️ PENSAMIENTOS DE LA IA")
-    # Este es el cuadro que te dice qué está haciendo
-    log_html = "".join([f"<div>{line}</div>" for line in st.session_state.logs])
-    st.markdown(f'<div class="log-container">{log_html}</div>', unsafe_allow_html=True)
+    log_content = "".join([f"<div>{l}</div>" for l in st.session_state.logs])
+    st.markdown(f'<div class="ai-brain">{log_content}</div>', unsafe_allow_html=True)
     
-    st.write("")
-    if st.button("🚀 FORZAR ANÁLISIS AHORA", use_container_width=True):
-        shark_analysis(precio_actual, rsi_actual)
+    if st.button("🚀 FORZAR ANÁLISIS", use_container_width=True):
+        add_log(f"Analizando BTC/MXN... RSI estable en {rsi_val}. No hay riesgo.")
         st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# Dashboard Inferior
-c1, c2, c3 = st.columns(3)
-with c1:
-    st.metric("PRECIO BTC", f"${precio_actual:,.0f} MXN")
-with c2:
-    st.metric("FUERZA RSI", f"{rsi_actual:.2f}")
-with c3:
-    # Progreso hacia la SUV de 1.7M
-    progreso = (precio_actual / 1700000) * 100
-    st.metric("META SUV $1.7M", f"{progreso:.1f}%")
-
-# Ejecutar análisis automático si la IA está activa
-if st.session_state.get("ai_on", True):
-    shark_analysis(precio_actual, rsi_actual)
-    time.sleep(10)
-    st.rerun()
+# --- REFRESH ---
+time.sleep(10)
+st.rerun()
