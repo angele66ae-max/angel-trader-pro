@@ -1,107 +1,85 @@
 import streamlit as st
-import time, requests, hashlib, hmac, json
+import time, requests, random
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- CONFIGURACIÓN DE ALTO NIVEL ---
-st.set_page_config(layout="wide", page_title="SHARK AI TERMINAL", page_icon="🦈")
+# --- CONFIGURACIÓN ---
+st.set_page_config(layout="wide", page_title="SHARK AI MONITOR", page_icon="🦈")
 
-# --- API SECRETS ---
-API_KEY = st.secrets.get("BITSO_API_KEY", "")
-API_SECRET = st.secrets.get("BITSO_API_SECRET", "")
-BASE_URL = "https://api.bitso.com"
-
-# --- DISEÑO CINEMATOGRÁFICO ---
+# --- ESTILO MEJORADO ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono&display=swap');
-    
-    .stApp { background: radial-gradient(circle at center, #050a0f 0%, #000000 100%); color: #e0e0e0; font-family: 'JetBrains Mono', monospace; }
-    
-    .glass-card {
-        background: rgba(255, 255, 255, 0.02);
-        border: 1px solid rgba(0, 234, 255, 0.2);
-        border-radius: 12px;
-        padding: 20px;
-        backdrop-filter: blur(15px);
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+    .log-container {
+        background-color: rgba(0, 255, 0, 0.05);
+        border-left: 3px solid #00ff00;
+        padding: 10px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 12px;
+        height: 250px;
+        overflow-y: auto;
     }
-    
-    .neon-title {
-        font-family: 'Orbitron', sans-serif;
-        font-size: 40px;
-        text-align: center;
-        color: #00eaff;
-        text-shadow: 0 0 15px #00eaff, 0 0 30px #bc13fe;
-        margin-bottom: 25px;
-    }
+    .status-active { color: #00ff00; font-weight: bold; }
+    .status-wait { color: #ffaa00; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- MOTOR DE DATOS ---
-def get_market_data():
-    try:
-        t = requests.get(f"{BASE_URL}/v3/ticker/?book=btc_mxn").json()["payload"]
-        tr = requests.get(f"{BASE_URL}/v3/trades/?book=btc_mxn&limit=50").json()["payload"]
-        df = pd.DataFrame(tr)
-        df["price"] = df["price"].astype(float)
-        return float(t["last"]), df
-    except: return 0.0, pd.DataFrame()
+# --- INICIALIZACIÓN DE MEMORIA DE LA IA ---
+if "logs" not in st.session_state:
+    st.session_state.logs = [f"[{time.strftime('%H:%M:%S')}] SHARK AI Iniciado. Esperando órdenes..."]
 
-# --- CÁLCULOS PREVIOS (Evita errores de variable no definida) ---
-if "ai_on" not in st.session_state: st.session_state.ai_on = False
-precio, df_trades = get_market_data()
+# --- FUNCIÓN DE ANÁLISIS REAL ---
+def shark_analysis(precio, rsi):
+    momento = time.strftime('%H:%M:%S')
+    if rsi < 30:
+        msg = f"[{momento}] 🟢 SEÑAL DE COMPRA: RSI en {rsi:.2f}. El mercado está barato."
+    elif rsi > 70:
+        msg = f"[{momento}] 🔴 SEÑAL DE VENTA: RSI en {rsi:.2f}. Posible caída próxima."
+    else:
+        msg = f"[{momento}] ⚪ ANALIZANDO: BTC a ${precio:,.0f}. Esperando cambio en RSI ({rsi:.2f})."
+    
+    # Guardar solo los últimos 10 eventos
+    st.session_state.logs.insert(0, msg)
+    st.session_state.logs = st.session_state.logs[:10]
 
-# Simulación de balance para la meta de la SUV (esto se conectará a tu wallet real)
-# Meta: $1,700,000 MXN
-total_mxn_simulado = precio * 1.2 # Ejemplo: 1.2 BTC
-meta_suv = 1700000
-progreso_porcentaje = min((total_mxn_simulado / meta_suv) * 100, 100)
+# --- DATOS (Simulación mejorada para testeo) ---
+precio_actual = 1278010 # Valor de tu última captura
+rsi_actual = random.uniform(25, 75) # Esto vendrá de tu API Bitso
 
 # --- INTERFAZ ---
-st.markdown('<div class="neon-title">🦈 SHARK AI: PRESTIGE TERMINAL</div>', unsafe_allow_html=True)
+st.title("🦈 SHARK AI: CENTRO DE CONTROL")
 
-# Dashboard de 4 Columnas
-c1, c2, c3, c4 = st.columns(4)
+col_main, col_side = st.columns([2, 1])
 
-with c1:
-    st.markdown(f'<div class="glass-card"><p style="color:#00eaff;margin:0">BTC MARKET</p><h2 style="margin:0">${precio:,.0f}</h2><small>MXN</small></div>', unsafe_allow_html=True)
-with c2:
-    # Cálculo rápido de RSI para el dashboard
-    rsi_val = 54.20 # Valor estático para prueba de diseño
-    st.markdown(f'<div class="glass-card"><p style="color:#bc13fe;margin:0">RSI INDEX</p><h2 style="margin:0">{rsi_val}</h2><small>STRENGTH</small></div>', unsafe_allow_html=True)
-with c3:
-    status = "ACTIVE" if st.session_state.ai_on else "OFFLINE"
-    color = "#00ff00" if st.session_state.ai_on else "#ff4b4b"
-    st.markdown(f'<div class="glass-card"><p style="color:{color};margin:0">AI ENGINE</p><h2 style="margin:0">{status}</h2><small>v10.1 CORE</small></div>', unsafe_allow_html=True)
-with c4:
-    st.markdown(f'<div class="glass-card"><p style="color:#00eaff;margin:0">GOAL SUV</p><h2 style="margin:0">{progreso_porcentaje:.1f}%</h2><progress value="{progreso_porcentaje}" max="100" style="width:100%"></progress></div>', unsafe_allow_html=True)
-
-st.write("")
-
-# Panel Principal
-col_control, col_graph = st.columns([1, 2.5])
-
-with col_control:
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.subheader("🕹️ CONTROL")
-    if st.button("🚀 DEPLOY AI", use_container_width=True): st.session_state.ai_on = True
-    if st.button("🔒 STOP ENGINE", use_container_width=True): st.session_state.ai_on = False
-    st.divider()
-    st.write("MANUAL TRADE")
-    if st.button("💸 BUY $100", use_container_width=True): st.toast("Order Sent", icon="⚡")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col_graph:
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(y=df_trades["price"], mode='lines', line=dict(color='#00eaff', width=3), fill='tozeroy', fillcolor='rgba(0, 234, 255, 0.1)'))
-    fig.update_layout(
-        margin=dict(l=0, r=0, t=0, b=0), height=350,
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        xaxis=dict(showgrid=False, visible=False), yaxis=dict(gridcolor='rgba(255,255,255,0.05)')
-    )
+with col_main:
+    # Gráfico de Mercado
+    fig = go.Figure(go.Scatter(y=[precio_actual-100, precio_actual+50, precio_actual], fill='tozeroy', line_color='#00eaff'))
+    fig.update_layout(height=400, margin=dict(l=0,r=0,t=0,b=0), template="plotly_dark")
     st.plotly_chart(fig, use_container_width=True)
 
-# --- REFRESH AUTOMÁTICO ---
-time.sleep(15)
-st.rerun()
+with col_side:
+    st.subheader("🕵️ PENSAMIENTOS DE LA IA")
+    # Este es el cuadro que te dice qué está haciendo
+    log_html = "".join([f"<div>{line}</div>" for line in st.session_state.logs])
+    st.markdown(f'<div class="log-container">{log_html}</div>', unsafe_allow_html=True)
+    
+    st.write("")
+    if st.button("🚀 FORZAR ANÁLISIS AHORA", use_container_width=True):
+        shark_analysis(precio_actual, rsi_actual)
+        st.rerun()
+
+# Dashboard Inferior
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.metric("PRECIO BTC", f"${precio_actual:,.0f} MXN")
+with c2:
+    st.metric("FUERZA RSI", f"{rsi_actual:.2f}")
+with c3:
+    # Progreso hacia la SUV de 1.7M
+    progreso = (precio_actual / 1700000) * 100
+    st.metric("META SUV $1.7M", f"{progreso:.1f}%")
+
+# Ejecutar análisis automático si la IA está activa
+if st.session_state.get("ai_on", True):
+    shark_analysis(precio_actual, rsi_actual)
+    time.sleep(10)
+    st.rerun()
