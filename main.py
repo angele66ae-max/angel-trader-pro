@@ -6,6 +6,7 @@ from io import BytesIO
 from datetime import datetime
 
 # --- CREDENCIALES ---
+# Se eliminaron espacios y se agregaron paréntesis faltantes para evitar SyntaxError
 API_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
 API_SECRET = str(st.secrets.get("BITSO_API_SECRET", "")).strip()
 
@@ -19,9 +20,10 @@ st.markdown("""
     h1, h2, h3 { font-family: 'Orbitron', sans-serif; color: #00d4ff !important; text-shadow: 0 0 10px #bc13fe; }
     .status-box { background: rgba(20, 0, 40, 0.8); border: 2px solid #00d4ff; padding: 15px; border-radius: 10px; box-shadow: 0 0 15px #bc13fe; }
     .stMetric { background: rgba(0, 0, 0, 0.5); border: 1px solid #bc13fe; border-radius: 5px; padding: 10px; }
-    /* Estilo para la barra de progreso */
+    /* Estilo Neón para la barra de progreso */
     .stProgress > div > div > div > div {
         background-image: linear-gradient(to right, #bc13fe, #00d4ff);
+        box-shadow: 0 0 10px #00d4ff;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -29,7 +31,7 @@ st.markdown("""
 def get_data():
     if not API_KEY or not API_SECRET: return None, "Faltan Credenciales"
     
-    # --- FIX 404: PATH SIN DIAGONAL FINAL ---
+    # --- SOLUCIÓN ERROR 404: Se eliminó la diagonal final del path ---
     base = "https://api.bitso.com"
     path = "/v3/balances" 
     
@@ -61,12 +63,14 @@ with col_side:
     with st.container():
         st.markdown('<div class="status-box">', unsafe_allow_html=True)
         st.markdown("**ESTADO:** 🟢 OPERATIVO")
+        st.markdown("**MOTOR:** ANALÍTICA IA v8")
         st.markdown("**OBJETIVO:** ESCALADO A $10K USD")
-        st.info("Monitoreo activo de activos y meta financiera.")
+        st.info("Monitoreo activo de activos y progreso de meta.")
         st.markdown('</div>', unsafe_allow_html=True)
 
 with col_main:
-    p_usd_mxn = get_ticker("usd_mxn") or 18.00
+    # Obtención de tipo de cambio real
+    p_usd_mxn = get_ticker("usd_mxn") or 17.82
     m1, m2, m3 = st.columns(3)
     m1.metric("₿ BTC", f"${get_ticker('btc_mxn'):,.0f} MXN")
     m2.metric("Ξ ETH", f"${get_ticker('eth_mxn'):,.0f} MXN")
@@ -74,7 +78,7 @@ with col_main:
 
     st.divider()
     
-    # --- WALLET Y PROGRESO ---
+    # --- WALLET Y BARRA DE PROGRESO ---
     st.subheader("💰 BILLETERA STARSHIP")
     balances, status = get_data()
     total_mxn = 0.0
@@ -89,35 +93,39 @@ with col_main:
                 if price == 0: price = get_ticker(f"{coin.lower()}_usd") * p_usd_mxn
                 v_mxn = cant * price
                 total_mxn += v_mxn
-                if v_mxn > 1.0:
+                if v_mxn > 0.01:
                     wallet_data.append({"TOKEN": coin, "CANTIDAD": cant, "PESOS": f"${v_mxn:,.2f}"})
         
         st.table(pd.DataFrame(wallet_data))
         
-        # --- CÁLCULO DE META ---
+        # --- CÁLCULO DE LA META DE $10,000 USD ---
         total_usd = total_mxn / p_usd_mxn
-        meta_usd = 10000.0
-        progreso = min(total_usd / meta_usd, 1.0)
+        meta_target = 10000.0
+        # El progreso no puede ser mayor al 100% para la barra
+        progreso_porcentaje = min(total_usd / meta_target, 1.0)
         
-        col_net1, col_net2 = st.columns(2)
-        col_net1.metric("TOTAL NET WORTH", f"${total_mxn:,.2f} MXN")
-        col_net2.metric("VALOR EN USD", f"${total_usd:,.2f} USD")
+        c1, c2 = st.columns(2)
+        c1.metric("TOTAL NET WORTH", f"${total_mxn:,.2f} MXN")
+        c2.metric("VALOR EN USD", f"${total_usd:,.2f} USD")
         
-        st.write(f"**Progreso hacia la meta de $10,000 USD:** {progreso*100:.2f}%")
-        st.progress(progreso)
+        st.write(f"**Progreso hacia la meta:** {progreso_porcentaje*100:.4f}%")
+        st.progress(progreso_porcentaje)
         
     else:
+        # Mensaje de error detallado si falla la conexión
         st.error(f"FALLO DE ENLACE: {status}")
-        st.info("Verifica que el path sea '/v3/balances' y que tu API Key tenga permisos de lectura.")
+        st.warning("Verifica que en Bitso el permiso sea 'Consultar Saldos' y no tengas límites de IP.")
 
-# --- GRÁFICA ---
+# --- GRÁFICA DE ANÁLISIS ---
 st.divider()
 st.subheader("📊 NEON STREAM ANALYSIS")
 curr_btc = get_ticker("btc_mxn") or 1250000
-df = pd.DataFrame({'Open': [curr_btc]*15, 'High': [curr_btc*1.002]*15, 'Low': [curr_btc*0.998]*15, 'Close': [curr_btc]*15})
-df.index = pd.date_range(start=datetime.now(), periods=15, freq='H')
+df_dummy = pd.DataFrame({'Open': [curr_btc]*15, 'High': [curr_btc*1.002]*15, 'Low': [curr_btc*0.998]*15, 'Close': [curr_btc]*15})
+df_dummy.index = pd.date_range(start=datetime.now(), periods=15, freq='H')
+
 mc = mpf.make_marketcolors(up='#00f2ff', down='#bc13fe', inherit=True)
-s = mpf.make_mpf_style(marketcolors=mc, gridcolor='#1a1a3a', facecolor='#020205', edgecolor='#bc13fe')
+s_style = mpf.make_mpf_style(marketcolors=mc, gridcolor='#1a1a3a', facecolor='#020205', edgecolor='#bc13fe')
+
 buf = BytesIO()
-mpf.plot(df, type='candle', style=s, figratio=(16,6), savefig=dict(fname=buf, dpi=100))
+mpf.plot(df_dummy, type='candle', style=s_style, figratio=(16,6), savefig=dict(fname=buf, dpi=100))
 st.image(buf, use_container_width=True)
