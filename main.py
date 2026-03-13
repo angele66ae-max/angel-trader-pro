@@ -1,142 +1,136 @@
 import streamlit as st
-import requests
+import time, requests, hashlib, hmac
 import pandas as pd
-import plotly.graph_objects as go
-import time
+import mplfinance as mpf
+from io import BytesIO
 from datetime import datetime
 
-st.set_page_config(
-    page_title="Angel Trader PRO",
-    page_icon="🚀",
-    layout="wide"
-)
+# --- CREDENCIALES ---
+API_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
+API_SECRET = str(st.secrets.get("BITSO_API_SECRET", "")).strip()
 
-# -----------------------------
-# ESTILO PROFESIONAL
-# -----------------------------
+st.set_page_config(layout="wide", page_title="SHARK NEON v7")
 
+# --- ESTILO RGB AZUL Y MORADO ---
 st.markdown("""
-<style>
-body {
-    background-color: #0f172a;
-}
-.metric-container {
-    background-color: #111827;
-    padding: 15px;
-    border-radius: 10px;
-}
-</style>
-""", unsafe_allow_html=True)
+    <style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono&display=swap');
+    
+    .stApp { 
+        background-color: #020205; 
+        color: #bc13fe; 
+        font-family: 'JetBrains Mono', monospace;
+    }
+    
+    /* Títulos con Glow Morado/Azul */
+    h1, h2 { 
+        font-family: 'Orbitron', sans-serif;
+        color: #00d4ff !important; 
+        text-shadow: 0 0 15px #bc13fe, 0 0 5px #00d4ff;
+        text-transform: uppercase;
+        border-bottom: 2px solid #bc13fe;
+    }
 
-st.title("🚀 Angel Trader PRO")
-st.caption("Plataforma experimental de trading")
+    /* Métricas RGB */
+    div[data-testid="stMetricValue"] { 
+        color: #00f2ff !important; 
+        text-shadow: 0 0 10px #00f2ff;
+        font-size: 2rem !important;
+    }
+    
+    /* Tablas estilo Tron */
+    .stTable { 
+        background: rgba(15, 0, 30, 0.9) !important;
+        border: 1px solid #bc13fe !important;
+        border-radius: 10px;
+        color: #00f2ff !important;
+    }
+    
+    hr { border: 1px solid #bc13fe; }
+    </style>
+    """, unsafe_allow_html=True)
 
-# -----------------------------
-# API BITSO
-# -----------------------------
-
-def obtener_precio():
-    url = "https://api.bitso.com/v3/ticker/?book=btc_mxn"
-
+def get_data():
+    if not API_KEY or not API_SECRET: return None, "NO_KEYS"
+    # SOLUCIÓN AL 404: Definimos la URL base y el path por separado
+    base_url = "https://api.bitso.com"
+    path = "/v3/balances/" # Aseguramos la diagonal final
+    
+    nonce = str(int(time.time() * 1000))
+    message = nonce + "GET" + path
+    signature = hmac.new(API_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
+    
+    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
     try:
-        r = requests.get(url)
-        data = r.json()
-        precio = float(data["payload"]["last"])
-        return precio
-    except:
-        return None
+        r = requests.get(base_url + path, headers=headers, timeout=10)
+        if r.status_code == 200:
+            return r.json()['payload']['balances'], "OK"
+        return None, f"Status {r.status_code}: {r.json().get('error', {}).get('message', 'Not Found')}"
+    except Exception as e:
+        return None, str(e)
 
-# -----------------------------
-# PANEL PRINCIPAL
-# -----------------------------
+def get_ticker(book):
+    try:
+        r = requests.get(f"https://api.bitso.com/v3/ticker/?book={book}").json()
+        return float(r['payload']['last'])
+    except: return 0.0
 
-precio = obtener_precio()
+st.title("🦈 SHARK SYSTEM: NEON CORE v7.0")
 
-col1, col2, col3 = st.columns(3)
+# --- TOP BAR RGB ---
+p_usd = get_ticker("usd_mxn") or 17.80
+c1, c2, c3 = st.columns(3)
+c1.metric("🔵 BITCOIN", f"${get_ticker('btc_mxn'):,.0f} MXN")
+c2.metric("🟣 ETHEREUM", f"${get_ticker('eth_mxn'):,.0f} MXN")
+c3.metric("🌐 USD/MXN", f"${p_usd:,.2f}")
 
-with col1:
-    st.metric(
-        label="BTC/MXN",
-        value=f"${precio:,.2f}"
-    )
+st.divider()
 
-with col2:
-    st.metric(
-        label="Estado",
-        value="Conectado"
-    )
+# --- WALLET SECTION ---
+st.header("🛸 STARSHIP WALLET")
+balances, status = get_data()
+total_mxn = 0.0
 
-with col3:
-    st.metric(
-        label="Servidor",
-        value="Activo"
-    )
+if status == "OK":
+    wallet_data = []
+    for b in balances:
+        cant = float(b['total'])
+        if cant > 0:
+            coin = b['currency'].upper()
+            price = 1.0 if coin == "MXN" else get_ticker(f"{coin.lower()}_mxn")
+            if price == 0: price = get_ticker(f"{coin.lower()}_usd") * p_usd
+            
+            v_mxn = cant * price
+            total_mxn += v_mxn
+            
+            if v_mxn > 1.0: # Solo mostramos lo que valga más de $1 peso
+                wallet_data.append({
+                    "ASSET": f"⚡ {coin}",
+                    "BALANCE": f"{cant:.6f}",
+                    "VAL_MXN": f"${v_mxn:,.2f}",
+                    "VAL_USD": f"${(v_mxn/p_usd):,.2f}"
+                })
+    
+    if wallet_data:
+        st.table(pd.DataFrame(wallet_data))
+        st.subheader(f"💎 TOTAL NET WORTH: ${total_mxn:,.2f} MXN")
+    else:
+        st.warning("Conectado, pero no se encontraron fondos.")
+else:
+    st.error(f"📡 ERROR DE ENLACE: {status}")
+    st.info("Tip: Verifica que la URL en el código no tenga puntos extra y que la API tenga permiso de 'Balances'.")
 
-# -----------------------------
-# HISTORIAL DE PRECIOS
-# -----------------------------
+# --- GRÁFICA RGB ---
+st.divider()
+st.subheader("📊 NEON MARKET STREAM")
+curr_btc = get_ticker("btc_mxn") or 1234000
+df = pd.DataFrame({'Open': [curr_btc]*12, 'High': [curr_btc*1.005]*12, 'Low': [curr_btc*0.995]*12, 'Close': [curr_btc]*12})
+df.index = pd.date_range(start=datetime.now(), periods=12, freq='H')
 
-if "precios" not in st.session_state:
-    st.session_state.precios = []
+# Colores de la gráfica: Azul y Morado
+mc = mpf.make_marketcolors(up='#00f2ff', down='#bc13fe', inherit=True)
+s = mpf.make_mpf_style(marketcolors=mc, gridcolor='#1a1a3a', facecolor='#020205', edgecolor='#bc13fe')
 
-if precio:
-    st.session_state.precios.append(precio)
-
-# limitar datos
-if len(st.session_state.precios) > 50:
-    st.session_state.precios.pop(0)
-
-df = pd.DataFrame(st.session_state.precios, columns=["precio"])
-
-# -----------------------------
-# GRAFICA PRO
-# -----------------------------
-
-st.subheader("📈 Gráfica del mercado")
-
-fig = go.Figure()
-
-fig.add_trace(
-    go.Scatter(
-        y=df["precio"],
-        mode="lines",
-        line=dict(color="#00ffcc", width=3),
-        name="BTC"
-    )
-)
-
-fig.update_layout(
-    template="plotly_dark",
-    height=500,
-    margin=dict(l=10, r=10, t=30, b=10)
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-# -----------------------------
-# SIMULADOR
-# -----------------------------
-
-st.subheader("💰 Simulación de compra")
-
-monto = st.number_input(
-    "Cantidad MXN",
-    min_value=100,
-    value=1000
-)
-
-if st.button("Comprar BTC"):
-
-    btc = monto / precio
-
-    st.success("Compra simulada")
-
-    st.write(f"MXN usados: ${monto}")
-    st.write(f"BTC recibidos: {btc:.6f}")
-
-# -----------------------------
-# ACTUALIZAR AUTOMATICAMENTE
-# -----------------------------
-
-time.sleep(2)
-st.rerun()
+buf = BytesIO()
+mpf.plot(df, type='candle', style=s, figratio=(16,7), savefig=dict(fname=buf, dpi=100))
+st.image(buf, use_container_width=True)
