@@ -6,7 +6,7 @@ from io import BytesIO
 from datetime import datetime
 
 # --- CREDENCIALES (Corregidas para evitar SyntaxError) ---
-# Se cerraron correctamente los paréntesis detectados en tus capturas
+# Se cerraron correctamente los paréntesis detectados en tu captura
 API_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
 API_SECRET = str(st.secrets.get("BITSO_API_SECRET", "")).strip()
 
@@ -40,7 +40,7 @@ st.markdown("""
 
 def get_data():
     if not API_KEY or not API_SECRET: return None, "Faltan Credenciales"
-    # FIX ERROR 404: Se eliminó la diagonal final del path
+    # FIX ERROR 404: Se eliminó la diagonal final del path que causa el error
     base = "https://api.bitso.com"
     path = "/v3/balances" 
     
@@ -61,10 +61,10 @@ def get_ticker(book):
         return float(r['payload']['last'])
     except: return 0.0
 
-# --- LÓGICA DE INTERFAZ ---
+# --- LÓGICA DE ACTUALIZACIÓN ---
 balances, status = get_data()
 
-# Si los datos cargan, inyectamos la clase de animación para que la pantalla se sacuda
+# Si los datos cargan, inyectamos la clase de animación para el efecto de "mordida"
 if status == "OK":
     st.markdown('<div class="shark-effect"></div>', unsafe_allow_html=True)
 
@@ -96,9 +96,9 @@ if status == "OK":
     st.write(f"**Progreso del Depredador:** {progreso*100:.2f}%")
     st.progress(progreso)
 else:
-    # Error 404 corregido visualmente
+    # Mensaje de error detallado según tus capturas
     st.error(f"⚠️ FALLO DE ENLACE: {status}")
-    st.info("Asegúrate de que en Bitso la llave tenga permiso de 'Consultar Saldos' y NO tenga IPs registradas.")
+    st.info("Revisa en Bitso: 1. Permiso 'Consultar Saldos' activo. 2. NO tener IPs registradas.")
 
 # --- GRÁFICA DE ANÁLISIS ---
 st.divider()
@@ -106,7 +106,7 @@ st.subheader("📊 NEON STREAM ANALYSIS")
 curr_btc = get_ticker("btc_mxn") or 1250000
 df = pd.DataFrame({'Open': [curr_btc]*10, 'High': [curr_btc*1.01]*10, 'Low': [curr_btc*0.99]*10, 'Close': [curr_btc]*10})
 df.index = pd.date_range(start=datetime.now(), periods=10, freq='H')
-# FIX SyntaxError: Se cerró correctamente la comilla del color
+# FIX SyntaxError: Se cerró la comilla del gridcolor detectada en tu captura
 mc = mpf.make_marketcolors(up='#00f2ff', down='#bc13fe', inherit=True)
 s = mpf.make_mpf_style(marketcolors=mc, gridcolor='#0d1117', facecolor='#020205', edgecolor='#bc13fe')
 buf = BytesIO()
