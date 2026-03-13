@@ -6,7 +6,7 @@ from io import BytesIO
 from datetime import datetime
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(layout="wide", page_title="SHARK NEON v8.5")
+st.set_page_config(layout="wide", page_title="SHARK NEON v8.6")
 
 # --- CREDENCIALES ---
 API_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
@@ -24,25 +24,26 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def bitso_request(path):
-    """Función maestra para firmar y pedir datos a Bitso"""
+    """Firmado de seguridad Shark Core"""
     nonce = str(int(time.time() * 1000))
     message = nonce + "GET" + path
     signature = hmac.new(API_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
     headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
-    return requests.get(f"https://api.api.bitso.com{path}", headers=headers, timeout=10)
+    # REGRESAMOS AL HOST SEGURO
+    return requests.get(f"https://api.bitso.com{path}", headers=headers, timeout=10)
 
 def get_data():
     if not API_KEY or not API_SECRET: return None, "Faltan Credenciales"
     
-    # INTENTO 1: Ruta con diagonal (La que te funcionó antes)
-    r = bitso_request("/v3/balances/")
-    if r.status_code == 200: return r.json()['payload']['balances'], "OK"
-    
-    # INTENTO 2: Ruta limpia (Estándar de Bitso)
-    r = bitso_request("/v3/balances")
-    if r.status_code == 200: return r.json()['payload']['balances'], "OK"
-    
-    return None, f"Error {r.status_code}: {r.text}"
+    # INTENTO ÚNICO: Ruta estándar sin errores de URL
+    try:
+        r = bitso_request("/v3/balances/")
+        if r.status_code == 200: 
+            return r.json()['payload']['balances'], "OK"
+        else:
+            return None, f"Error {r.status_code}: {r.text}"
+    except Exception as e: 
+        return None, f"Error de Conexión: {str(e)}"
 
 def get_ticker(book):
     try:
@@ -50,8 +51,8 @@ def get_ticker(book):
         return float(r['payload']['last'])
     except: return 0.0
 
-# --- LÓGICA DE INTERFAZ ---
-st.title("🦈 SHARK SYSTEM: NEON CORE v8.5")
+# --- INTERFAZ ---
+st.title("🦈 SHARK SYSTEM: NEON CORE v8.6")
 
 col_main, col_side = st.columns([2, 1])
 
@@ -60,17 +61,18 @@ with col_side:
     balances, status = get_data()
     st.markdown(f"""
     <div class="status-box">
-        <b>ESTADO:</b> {"🟢 OPERATIVO" if status == "OK" else "🔴 FALLO DE ENLACE"}<br>
-        <b>MOTOR:</b> SHARK-IA v8.5<br>
-        <b>OBJETIVO:</b> $10,000 USD
+        <b>ESTADO:</b> {"🟢 CONECTADO" if status == "OK" else "🔴 ERROR DE NODO"}<br>
+        <b>MOTOR:</b> SHARK-IA v8.6<br>
+        <b>PROYECTO:</b> STARSHIP 2026
     </div>
     """, unsafe_allow_html=True)
     
     if status != "OK":
-        st.error(f"Detalle: {status}")
-        st.info("Tip: Asegúrate de que el API SECRET en Streamlit sea el mismo de 'casa tiburones'.")
+        st.error(status)
+        st.warning("REVISA: Bitso > Perfil > API. El permiso debe ser 'Ver saldos'.")
 
 with col_main:
+    # PRECIOS EN TIEMPO REAL
     p_usd = get_ticker("usd_mxn") or 18.00
     m1, m2, m3 = st.columns(3)
     m1.metric("₿ BTC", f"${get_ticker('btc_mxn'):,.0f} MXN")
@@ -80,8 +82,8 @@ with col_main:
     if status == "OK":
         st.divider()
         st.subheader("💰 BILLETERA STARSHIP")
+        df_data = []
         total_mxn = 0.0
-        wallet_list = []
         for b in balances:
             cant = float(b['total'])
             if cant > 0:
@@ -89,15 +91,16 @@ with col_main:
                 price = 1.0 if coin == "MXN" else get_ticker(f"{coin.lower()}_mxn")
                 v_mxn = cant * price
                 total_mxn += v_mxn
-                if v_mxn > 0.1:
-                    wallet_list.append({"TOKEN": coin, "CANTIDAD": cant, "VALOR": f"${v_mxn:,.2f} MXN"})
+                if v_mxn > 0.5:
+                    df_data.append({"TOKEN": coin, "CANTIDAD": cant, "VALOR MXN": f"${v_mxn:,.2f}"})
         
-        st.table(pd.DataFrame(wallet_list))
-        st.metric("NET WORTH TOTAL", f"${total_mxn:,.2f} MXN")
+        st.table(pd.DataFrame(df_data))
+        st.metric("BALANCE TOTAL", f"${total_mxn:,.2f} MXN")
 
 # --- GRÁFICA ---
 st.divider()
 st.subheader("📊 NEON STREAM ANALYSIS")
+# Simulación de velas con el precio actual
 curr_btc = get_ticker("btc_mxn") or 1250000
 df = pd.DataFrame({'Open': [curr_btc]*10, 'High': [curr_btc*1.01]*10, 'Low': [curr_btc*0.99]*10, 'Close': [curr_btc]*10})
 df.index = pd.date_range(start=datetime.now(), periods=10, freq='H')
