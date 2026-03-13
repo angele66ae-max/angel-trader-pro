@@ -1,3 +1,4 @@
+import streamlit as st
 import time
 import requests
 import hashlib
@@ -11,19 +12,29 @@ API_SECRET = "TU_API_SECRET"
 
 BASE_URL = "https://api.bitso.com"
 
-# ---------- PRECIOS ----------
+st.set_page_config(page_title="SHARK TRADER", layout="wide")
+
+st.title("🦈 SHARK AUTO TRADER")
+
+# ---------- PRECIO ----------
 def get_price(book="btc_mxn"):
-    r = requests.get(f"{BASE_URL}/v3/ticker/?book={book}")
-    data = r.json()
-    return float(data["payload"]["last"])
+    try:
+        r = requests.get(f"{BASE_URL}/v3/ticker/?book={book}")
+        data = r.json()
+        return float(data["payload"]["last"])
+    except:
+        return 0
 
 # ---------- HISTORIAL ----------
 def get_trades():
-    r = requests.get(f"{BASE_URL}/v3/trades/?book=btc_mxn&limit=100")
-    trades = r.json()["payload"]
-    df = pd.DataFrame(trades)
-    df["price"] = df["price"].astype(float)
-    return df
+    try:
+        r = requests.get(f"{BASE_URL}/v3/trades/?book=btc_mxn&limit=100")
+        trades = r.json()["payload"]
+        df = pd.DataFrame(trades)
+        df["price"] = df["price"].astype(float)
+        return df
+    except:
+        return pd.DataFrame()
 
 # ---------- RSI ----------
 def calculate_rsi(series, period=14):
@@ -76,36 +87,44 @@ def crear_orden(side, amount_mxn):
 
     return r.json()
 
-# ---------- LOOP PRINCIPAL ----------
+# ---------- ANALISIS ----------
 
-while True:
+df = get_trades()
 
-    print("Analizando mercado...")
-
-    df = get_trades()
+if not df.empty:
 
     rsi = calculate_rsi(df["price"])
     rsi_actual = rsi.iloc[-1]
 
     precio = get_price()
 
-    print("Precio BTC:", precio)
-    print("RSI:", rsi_actual)
+    st.metric("Precio BTC", f"${precio:,.0f} MXN")
+    st.metric("RSI", round(rsi_actual,2))
 
     if rsi_actual < 30:
 
-        print("🟢 COMPRA AUTOMÁTICA")
-        respuesta = crear_orden("buy", 100)   # compra 100 MXN
-        print(respuesta)
+        st.success("🟢 Señal de COMPRA")
+
+        if st.button("Comprar 100 MXN BTC"):
+            respuesta = crear_orden("buy",100)
+            st.write(respuesta)
 
     elif rsi_actual > 70:
 
-        print("🔴 VENTA AUTOMÁTICA")
-        respuesta = crear_orden("sell", 100)
-        print(respuesta)
+        st.error("🔴 Señal de VENTA")
+
+        if st.button("Vender 100 MXN BTC"):
+            respuesta = crear_orden("sell",100)
+            st.write(respuesta)
 
     else:
 
-        print("⏳ Esperando señal...")
+        st.warning("⏳ Esperando señal")
 
-    time.sleep(60)
+else:
+
+    st.error("No se pudo obtener datos del mercado")
+
+# ---------- AUTO REFRESH ----------
+time.sleep(30)
+st.rerun()
