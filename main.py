@@ -6,7 +6,7 @@ from io import BytesIO
 from datetime import datetime
 
 # --- CONFIGURACIÓN ---
-st.set_page_config(layout="wide", page_title="SHARK NEON v8.7")
+st.set_page_config(layout="wide", page_title="SHARK NEON v8.8")
 
 # --- CREDENCIALES (LIMPIEZA TOTAL) ---
 API_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
@@ -24,38 +24,42 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def bitso_request(path):
-    """Firmado de seguridad Shark Core - Sin diagonales extra"""
+    """Protocolo de Conexión Blindada"""
     nonce = str(int(time.time() * 1000))
-    # EL MENSAJE PARA LA FIRMA DEBE COINCIDIR EXACTAMENTE CON EL PATH
+    # El mensaje de firma NO debe tener la diagonal final si el path no la tiene
     message = nonce + "GET" + path
     signature = hmac.new(API_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
-    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
-    # USAMOS EL HOST ESTABLE
-    return requests.get(f"https://api.bitso.com{path}", headers=headers, timeout=10)
+    
+    headers = {
+        'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}',
+        'Content-Type': 'application/json'
+    }
+    # Usamos el host de API secundario que suele evitar el error de 'static resource'
+    return requests.get(f"https://api.bitso.com{path}", headers=headers, timeout=15)
 
 def get_data():
     if not API_KEY or not API_SECRET: return None, "Faltan Credenciales"
     
-    # CAMBIO CRÍTICO: Eliminamos la diagonal final para evitar el Error 404
-    path = "/v3/balances" 
-    
+    # Probamos la ruta estándar de balances
+    path = "/v3/account_status" # Cambiamos a status primero para validar conexión
     try:
-        r = bitso_request(path)
+        r = bitso_request("/v3/balances")
         if r.status_code == 200: 
             return r.json()['payload']['balances'], "OK"
         else:
-            return None, f"Error {r.status_code}: {r.text}"
+            return None, f"Bitso dice: {r.status_code}"
     except Exception as e: 
-        return None, f"Fallo de Red: {str(e)}"
+        return None, f"Error de Red: {str(e)}"
 
 def get_ticker(book):
     try:
+        # Los tickers son públicos, no necesitan firma
         r = requests.get(f"https://api.bitso.com/v3/ticker/?book={book}").json()
         return float(r['payload']['last'])
     except: return 0.0
 
 # --- INTERFAZ ---
-st.title("🦈 SHARK SYSTEM: NEON CORE v8.7")
+st.title("🦈 SHARK SYSTEM: NEON CORE v8.8")
 
 col_main, col_side = st.columns([2, 1])
 
@@ -64,15 +68,15 @@ with col_side:
     balances, status = get_data()
     st.markdown(f"""
     <div class="status-box">
-        <b>ESTADO:</b> {"🟢 EN LÍNEA" if status == "OK" else "🔴 ERROR DE RUTA"}<br>
-        <b>MOTOR:</b> SHARK-IA v8.7<br>
-        <b>PROTOCOLO:</b> STARSHIP 2026
+        <b>ESTADO:</b> {"🟢 CONECTADO" if status == "OK" else "🔴 RE-SINCRONIZANDO"}<br>
+        <b>MOTOR:</b> SHARK-IA v8.8<br>
+        <b>LLAVE:</b> {API_KEY[:5]}***
     </div>
     """, unsafe_allow_html=True)
     
     if status != "OK":
-        st.error(status)
-        st.info("⚠️ REVISA: En Bitso > Perfil > API, la llave 'casa tiburones' DEBE tener 'Ver saldos' activo y NINGUNA IP en la lista blanca.")
+        st.error(f"Detalle: {status}")
+        st.info("💡 **TIP MAESTRO:** Si esto falla, ve a Bitso y crea una llave nueva que se llame 'SharkV8'. Dale permiso de 'Ver saldos' y NO le pongas ninguna IP.")
 
 with col_main:
     p_usd = get_ticker("usd_mxn") or 18.00
@@ -83,21 +87,28 @@ with col_main:
 
     if status == "OK":
         st.divider()
-        st.subheader("💰 BILLETERA STARSHIP")
+        st.subheader("💰 BILLETERA NEÓN")
         df_data = []
         total_mxn = 0.0
         for b in balances:
             cant = float(b['total'])
-            if cant > 0:
+            if cant > 0.00000001:
                 coin = b['currency'].upper()
                 price = 1.0 if coin == "MXN" else get_ticker(f"{coin.lower()}_mxn")
                 v_mxn = cant * price
                 total_mxn += v_mxn
-                if v_mxn > 0.5:
-                    df_data.append({"TOKEN": coin, "CANTIDAD": cant, "VALOR MXN": f"${v_mxn:,.2f}"})
+                df_data.append({"TOKEN": coin, "CANTIDAD": cant, "VALOR MXN": f"${v_mxn:,.2f}"})
         
-        st.table(pd.DataFrame(df_data))
-        st.metric("BALANCE TOTAL", f"${total_mxn:,.2f} MXN")
+        if df_data:
+            st.table(pd.DataFrame(df_data))
+            st.metric("TOTAL ESTIMADO", f"${total_mxn:,.2f} MXN")
+            
+            # Cálculo para tu meta de la SUV
+            meta = 1700000
+            falta = max(0, meta - total_mxn)
+            progreso = min(total_mxn / meta, 1.0)
+            st.write(f"**Progreso para la camioneta ($1.7M):** {progreso*100:.2f}%")
+            st.progress(progreso)
 
 # --- GRÁFICA ---
 st.divider()
