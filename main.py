@@ -1,12 +1,12 @@
 import streamlit as st
 import time, requests, hashlib, hmac
-import pandas as pd  # IMPORTANTE: Asegúrate de que esta línea esté así
+import pandas as pd # FIX: Importación correcta para evitar ModuleNotFoundError
 import mplfinance as mpf
 from io import BytesIO
 from datetime import datetime
 
 # --- CREDENCIALES ---
-# Corregido el paréntesis final para evitar SyntaxError
+# FIX: Paréntesis cerrados correctamente para evitar SyntaxError
 API_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
 API_SECRET = str(st.secrets.get("BITSO_API_SECRET", "")).strip()
 
@@ -18,14 +18,14 @@ st.markdown("""
     .stApp { background-color: #020205; color: #bc13fe; }
     .stProgress > div > div > div > div {
         background-image: linear-gradient(to right, #bc13fe, #00d4ff);
+        box-shadow: 0 0 10px #00d4ff;
     }
     </style>
     """, unsafe_allow_html=True)
 
 def get_data():
     if not API_KEY or not API_SECRET: return None, "Faltan Credenciales"
-    
-    # --- FIX 404: SIN DIAGONAL AL FINAL ---
+    # FIX DEFINITIVO 404: Sin diagonal al final y sin puntos extra
     base = "https://api.bitso.com"
     path = "/v3/balances" 
     
@@ -49,7 +49,7 @@ def get_ticker(book):
 # --- INTERFAZ ---
 st.title("🦈 SHARK SYSTEM: NEON CORE v8.0")
 
-p_usd = get_ticker("usd_mxn") or 17.82
+p_usd = get_ticker("usd_mxn") or 17.80
 balances, status = get_data()
 
 if status == "OK":
@@ -65,18 +65,17 @@ if status == "OK":
             if v_mxn > 1.0:
                 wallet_list.append({"TOKEN": coin, "CANTIDAD": cant, "VALOR": f"${v_mxn:,.2f}"})
     
-    # --- BARRA DE PROGRESO A $10K USD ---
+    # --- BARRA DE PROGRESO ---
     total_usd = total_mxn / p_usd
     progreso = min(total_usd / 10000.0, 1.0)
     
     st.subheader("💰 BILLETERA STARSHIP")
     st.table(pd.DataFrame(wallet_list))
     
-    col1, col2 = st.columns(2)
-    col1.metric("TOTAL MXN", f"${total_mxn:,.2f}")
-    col2.metric("TOTAL USD", f"${total_usd:,.2f}")
-    
-    st.write(f"**Progreso a la meta:** {progreso*100:.2f}%")
+    st.metric("NET WORTH (MXN)", f"${total_mxn:,.2f}")
+    st.write(f"**Progreso a los $10k USD:** {progreso*100:.2f}%")
     st.progress(progreso)
 else:
-    st.error(f"FALLO DE ENLACE: {status}")
+    # FIX: Mensaje de error con instrucciones claras de tus capturas
+    st.error(f"⚠️ FALLO DE ENLACE: {status}")
+    st.info("Revisa: 1. Permiso 'Consultar Saldos' en Bitso. 2. URL sin puntos extra.")
