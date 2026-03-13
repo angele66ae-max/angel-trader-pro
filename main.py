@@ -24,18 +24,25 @@ st.markdown("""
 
 def get_data():
     if not API_KEY or not API_SECRET: return None, "Faltan Credenciales"
-    # FIX DEFINITIVO 404: Sin puntos ni rutas extrañas
+    
+    # EL FIX: Path sin diagonal al final
     base = "https://api.bitso.com"
-    path = "/v3/balances/"
+    path = "/v3/balances" 
+    
     nonce = str(int(time.time() * 1000))
     message = nonce + "GET" + path
+    
     signature = hmac.new(API_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
     headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
+    
     try:
+        # Aquí se hace la petición limpia
         r = requests.get(base + path, headers=headers, timeout=10)
-        if r.status_code == 200: return r.json()['payload']['balances'], "OK"
+        if r.status_code == 200: 
+            return r.json()['payload']['balances'], "OK"
         return None, f"Error {r.status_code}"
-    except Exception as e: return None, str(e)
+    except Exception as e: 
+        return None, str(e)
 
 def get_ticker(book):
     try:
@@ -111,3 +118,4 @@ s = mpf.make_mpf_style(marketcolors=mc, gridcolor='#1a1a3a', facecolor='#020205'
 buf = BytesIO()
 mpf.plot(df, type='candle', style=s, figratio=(16,6), savefig=dict(fname=buf, dpi=100))
 st.image(buf, use_container_width=True)
+
