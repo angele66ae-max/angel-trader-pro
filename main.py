@@ -11,22 +11,16 @@ API_SECRET = str(st.secrets.get("BITSO_API_SECRET", "")).strip()
 
 st.set_page_config(layout="wide", page_title="SHARK NEON v8.0")
 
-# --- ESTILO + ANIMACIÓN ---
+# --- ESTILO NEÓN + EFECTO DE MORDIDA ---
 st.markdown("""
     <style>
     @keyframes shark-bite {
         0% { transform: scale(1); background-color: #020205; }
-        10% { transform: scale(1.02) rotate(1deg); background-color: #ff000033; }
-        50% { transform: scale(0.98) rotate(-1deg); background-color: #ff000055; }
+        10% { transform: scale(1.05) rotate(1deg); background-color: #ff000044; }
+        50% { transform: scale(0.95) rotate(-1deg); background-color: #ff000022; }
         100% { transform: scale(1); background-color: #020205; }
     }
-    .shark-effect {
-        animation: shark-bite 0.5s ease-in-out;
-        position: fixed;
-        top: 0; left: 0; width: 100vw; height: 100vh;
-        z-index: -1;
-        pointer-events: none;
-    }
+    .shark-attack { animation: shark-bite 0.6s ease-out; }
     .stApp { background-color: #020205; color: #bc13fe; font-family: 'JetBrains Mono', monospace; }
     .stProgress > div > div > div > div {
         background-image: linear-gradient(to right, #bc13fe, #00d4ff);
@@ -37,8 +31,9 @@ st.markdown("""
 
 def get_data():
     if not API_KEY or not API_SECRET: return None, "Faltan Credenciales"
+    # SOLUCIÓN AL 404: Sin diagonal al final y sin puntos extra
     base = "https://api.bitso.com"
-    path = "/v3/balances" # SIN diagonal final para evitar 404
+    path = "/v3/balances" 
     
     nonce = str(int(time.time() * 1000))
     message = nonce + "GET" + path
@@ -57,18 +52,18 @@ def get_ticker(book):
         return float(r['payload']['last'])
     except: return 0.0
 
-# --- EJECUCIÓN ---
+# --- PROCESO ---
 balances, status = get_data()
 
-# Si todo está bien, lanzamos el efecto visual
 if status == "OK":
-    st.markdown('<div class="shark-effect"></div>', unsafe_allow_html=True)
+    # Inyectar el efecto visual de ataque
+    st.markdown('<div class="shark-attack"></div>', unsafe_allow_html=True)
 
 st.title("🦈 SHARK SYSTEM: NEON CORE v8.0")
 
 if status == "OK":
     total_mxn = 0.0
-    wallet_data = []
+    wallet_list = []
     p_usd = get_ticker("usd_mxn") or 18.00
     
     for b in balances:
@@ -79,21 +74,24 @@ if status == "OK":
             v_mxn = cant * price
             total_mxn += v_mxn
             if v_mxn > 1.0:
-                wallet_data.append({"TOKEN": coin, "CANTIDAD": cant, "VALOR": f"${v_mxn:,.2f}"})
+                wallet_list.append({"TOKEN": coin, "CANTIDAD": cant, "VALOR": f"${v_mxn:,.2f}"})
     
+    # PROGRESO HACIA $10k USD
     total_usd = total_mxn / p_usd
     progreso = min(total_usd / 10000.0, 1.0)
     
     col1, col2 = st.columns(2)
     col1.metric("NET WORTH", f"${total_mxn:,.2f} MXN")
-    col2.metric("META USD", f"${total_usd:,.2f} / $10,000")
+    col2.metric("TOTAL USD", f"${total_usd:,.2f} / $10,000")
     
-    st.write(f"**Progreso del Depredador:** {progreso*100:.2f}%")
+    st.write(f"**Nivel de Voracidad:** {progreso*100:.2f}%")
     st.progress(progreso)
 else:
-    st.error(f"⚠️ FALLO DE ENLACE: {status}")
+    # Error con instrucciones de tus capturas
+    st.error(f"⚠️ {status}: NOT FOUND")
+    st.info("Revisa en Bitso: Permiso 'Account Balances' activo y SIN IP Whitelist.")
 
-# --- GRÁFICA ---
+# --- GRÁFICA NEÓN ---
 st.divider()
 st.subheader("📊 NEON STREAM ANALYSIS")
 curr_btc = get_ticker("btc_mxn") or 1250000
