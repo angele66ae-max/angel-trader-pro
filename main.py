@@ -1,82 +1,102 @@
 import streamlit as st
-import time, requests, hashlib, hmac
+import time, hashlib, hmac, json
 import pandas as pd
+import urllib3 # Librería de bajo nivel para máxima estabilidad
 
-# --- CONFIGURACIÓN CORE ---
-st.set_page_config(layout="wide", page_title="SHARK NEON v9.2")
+# --- CONFIGURACIÓN ---
+st.set_page_config(layout="wide", page_title="SHARK NEON v9.5")
 
 # --- CREDENCIALES ---
 API_KEY = st.secrets.get("BITSO_API_KEY", "").strip()
 API_SECRET = st.secrets.get("BITSO_API_SECRET", "").strip()
 
-# --- ESTILO VISUAL ---
+# --- ESTILO SHARK ---
 st.markdown("""
     <style>
-    .stApp { background-color: #020205; color: #00d4ff; }
-    .card { background: #0a0a0f; border: 1px solid #bc13fe; padding: 20px; border-radius: 12px; }
+    .stApp { background-color: #010103; color: #00d4ff; }
+    .status-panel { border: 2px solid #bc13fe; padding: 20px; border-radius: 15px; background: #0a0a0f; }
     </style>
     """, unsafe_allow_html=True)
 
-def bitso_auth_request(path):
-    """Protocolo de firma v9.2 - Precisión absoluta"""
+def bitso_wallbreaker(path):
+    """Protocolo de Conexión de Bajo Nivel v9.5"""
+    http = urllib3.PoolManager()
     nonce = str(int(time.time() * 1000))
     message = nonce + "GET" + path
     signature = hmac.new(API_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
     
     headers = {
         'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'User-Agent': 'Mozilla/5.0 (SharkSystem/9.5)'
     }
     
-    url = f"https://api.bitso.com{path}"
-    return requests.get(url, headers=headers)
+    # Forzamos la URL sin barras diagonales dobles al final
+    url = f"https://api.bitso.com{path.rstrip('/')}"
+    return http.request('GET', url, headers=headers)
 
-# --- LÓGICA DE DATOS ---
-st.title("🦈 SHARK SYSTEM v9.2")
-st.write(f"Protocolo: **Starship 2026** | Operador: **Pavo Free Fire**")
+def get_ticker_lite(book):
+    try:
+        r = urllib3.PoolManager().request('GET', f"https://api.bitso.com/v3/ticker/?book={book}")
+        data = json.loads(r.data.decode('utf-8'))
+        return float(data['payload']['last'])
+    except: return 0.0
 
-col_info, col_balance = st.columns([1, 2])
+# --- INTERFAZ PRINCIPAL ---
+st.title("🦈 SHARK SYSTEM v9.5")
+st.write(f"Operador: **Pavo Free Fire** | Status Meta: **SUV 1.7M**")
 
-with col_info:
-    st.subheader("📡 ESTADO DEL NODO")
-    if not API_KEY:
-        st.error("Faltan llaves en Secrets")
+col_left, col_right = st.columns([1, 2])
+
+with col_left:
+    st.subheader("📡 CONEXIÓN AL NODO")
+    if not API_KEY or not API_SECRET:
+        st.error("⚠️ Error: Configura tus Secrets.")
     else:
-        response = bitso_auth_request("/v3/balances")
-        if response.status_code == 200:
-            st.success("🟢 CONEXIÓN ESTABLE")
-            balances = response.json()['payload']['balances']
-            status = "OK"
+        resp = bitso_wallbreaker("/v3/balances")
+        if resp.status == 200:
+            st.success("🟢 SISTEMA ONLINE")
+            balances = json.loads(resp.data.decode('utf-8'))['payload']['balances']
+            con_exito = True
         else:
-            status = "ERROR"
-            st.error(f"Fallo: {response.status_code}")
-            st.write(f"Detalle: {response.text}")
-            st.info("💡 **TIP:** Si ves 404, la API Key 'SharkElite' aún no se propaga. Espera 2 min.")
+            con_exito = False
+            st.markdown(f"""
+            <div class="status-panel">
+                <h4 style='color:#ff4b4b'>🔴 FALLO CRÍTICO</h4>
+                <b>Código:</b> {resp.status}<br>
+                <b>Mensaje:</b> Acceso denegado por Bitso.
+            </div>
+            """, unsafe_allow_html=True)
+            st.info("💡 **SOLUCIÓN MAESTRA:** Si el 404 persiste, entra a Bitso > Perfil > Seguridad y desactiva cualquier opción de 'Restricción por IP' global.")
 
-with col_balance:
-    st.subheader("🎯 META SUV $1.7M")
-    # Meta de la camioneta de 1.7 millones
-    meta_objetivo = 1700000
-    saldo_total_mxn = 0.0
+with col_right:
+    # META DE LA CAMIONETA 1.7M
+    meta = 1700000
+    total_mxn = 0.0
     
-    if status == "OK":
-        wallet_rows = []
+    if con_exito:
+        wallet_list = []
         for b in balances:
             qty = float(b['total'])
             if qty > 0:
                 coin = b['currency'].upper()
-                # Precio simple para no saturar la API
-                p_resp = requests.get(f"https://api.bitso.com/v3/ticker/?book={coin.lower()}_mxn").json()
-                price = float(p_resp['payload']['last']) if 'payload' in p_resp else 1.0
-                valor = qty * price
-                saldo_total_mxn += valor
-                wallet_rows.append({"Token": coin, "Saldo": qty, "Valor MXN": f"${valor:,.2f}"})
+                price = 1.0 if coin == "MXN" else get_ticker_lite(f"{coin.lower()}_mxn")
+                sub = qty * price
+                total_mxn += sub
+                wallet_list.append({"Token": coin, "Balance": qty, "Valor MXN": f"${sub:,.2f}"})
         
-        st.dataframe(pd.DataFrame(wallet_rows), use_container_width=True)
+        st.dataframe(pd.DataFrame(wallet_list), hide_index=True)
         
-        progreso = min(saldo_total_mxn / meta_objetivo, 1.0)
-        st.metric("TOTAL EN CARTERA", f"${saldo_total_mxn:,.2f} MXN")
+        progreso = min(total_mxn / meta, 1.0)
+        st.metric("CAPITAL TOTAL", f"${total_mxn:,.2f} MXN")
+        st.write(f"🚀 **Avance para la SUV:** {progreso*100:.2f}%")
         st.progress(progreso)
-        st.write(f"Llevas el **{progreso*100:.2f}%** de tu camioneta.")
     else:
-        st.warning("Esperando conexión para calcular progreso...")
+        st.warning("Esperando datos para actualizar meta de 1.7M...")
+
+# --- TICKERS ---
+st.divider()
+c1, c2, c3 = st.columns(3)
+c1.metric("₿ BTC", f"${get_ticker_lite('btc_mxn'):,.0f}")
+c2.metric("Ξ ETH", f"${get_ticker_lite('eth_mxn'):,.0f}")
+c3.metric("💵 USD", f"${get_ticker_lite('usd_mxn'):,.2f}")
