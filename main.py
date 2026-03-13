@@ -7,7 +7,7 @@ import json
 import pandas as pd
 
 # ---------- CONFIG ----------
-st.set_page_config(layout="wide", page_title="SHARK AI TRADER")
+st.set_page_config(layout="wide", page_title="SHARK AI TERMINAL")
 
 # ---------- API ----------
 API_KEY = st.secrets.get("BITSO_API_KEY","")
@@ -15,58 +15,78 @@ API_SECRET = st.secrets.get("BITSO_API_SECRET","")
 
 BASE_URL = "https://api.bitso.com"
 
-# ---------- ESTILO ----------
+# ---------- ESTILO CINE ----------
 st.markdown("""
 <style>
-.stApp {background-color:#050505;color:#00eaff;}
-.block-container {padding-top:2rem;}
+
+.stApp{
+background: radial-gradient(circle at top,#050505,#000000);
+color:#00eaff;
+font-family:monospace;
+}
+
+.title{
+font-size:50px;
+text-align:center;
+color:#00eaff;
+text-shadow:0 0 20px #00eaff;
+}
+
+.card{
+background:#0b0b0b;
+border:1px solid #00eaff;
+border-radius:10px;
+padding:20px;
+box-shadow:0 0 15px #00eaff;
+}
+
+button[kind="secondary"]{
+background:#00eaff;
+color:black;
+border-radius:10px;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🦈 SHARK AI TRADER")
+st.markdown('<div class="title">🦈 SHARK AI TRADING TERMINAL</div>',unsafe_allow_html=True)
 
 # ---------- SESSION ----------
-if "auto_trading" not in st.session_state:
-    st.session_state.auto_trading = False
+if "ai_on" not in st.session_state:
+    st.session_state.ai_on=False
 
 # ---------- PRECIO ----------
-def get_price(book="btc_mxn"):
-    try:
-        r = requests.get(f"{BASE_URL}/v3/ticker/?book={book}")
-        return float(r.json()["payload"]["last"])
-    except:
-        return 0
+def get_price():
+    r=requests.get(f"{BASE_URL}/v3/ticker/?book=btc_mxn")
+    return float(r.json()["payload"]["last"])
 
 # ---------- TRADES ----------
 def get_trades():
-    try:
-        r = requests.get(f"{BASE_URL}/v3/trades/?book=btc_mxn&limit=100")
-        df = pd.DataFrame(r.json()["payload"])
-        df["price"] = df["price"].astype(float)
-        return df
-    except:
-        return pd.DataFrame()
+    r=requests.get(f"{BASE_URL}/v3/trades/?book=btc_mxn&limit=100")
+    df=pd.DataFrame(r.json()["payload"])
+    df["price"]=df["price"].astype(float)
+    return df
 
 # ---------- RSI ----------
-def calculate_rsi(series, period=14):
+def rsi(series,period=14):
 
-    delta = series.diff()
+    delta=series.diff()
 
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
+    gain=delta.clip(lower=0)
+    loss=-delta.clip(upper=0)
 
-    avg_gain = gain.rolling(period).mean()
-    avg_loss = loss.rolling(period).mean()
+    avg_gain=gain.rolling(period).mean()
+    avg_loss=loss.rolling(period).mean()
 
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
+    rs=avg_gain/avg_loss
 
-    return rsi
+    return 100-(100/(1+rs))
 
 # ---------- ORDEN ----------
-def crear_orden(side, amount):
+def order(side,amount):
 
     path="/v3/orders"
+
     nonce=str(int(time.time()*1000))
 
     order={
@@ -95,61 +115,70 @@ def crear_orden(side, amount):
 
     return r.json()
 
-# ---------- PANEL ----------
-col1,col2,col3=st.columns(3)
+# ---------- DATOS ----------
+df=get_trades()
 
 precio=get_price()
 
-df=get_trades()
+rsi_actual=float(rsi(df["price"]).iloc[-1])
 
-if not df.empty:
+# ---------- PANEL ----------
+c1,c2,c3=st.columns(3)
 
-    rsi=calculate_rsi(df["price"])
-    rsi_actual=float(rsi.iloc[-1])
+with c1:
+    st.metric("BTC PRICE",f"${precio:,.0f} MXN")
 
-else:
-    rsi_actual=0
+with c2:
+    st.metric("RSI",round(rsi_actual,2))
 
-col1.metric("BTC PRECIO",f"${precio:,.0f} MXN")
-col2.metric("RSI",round(rsi_actual,2))
-col3.metric("IA ACTIVA","SI" if st.session_state.auto_trading else "NO")
+with c3:
+    estado="ACTIVA" if st.session_state.ai_on else "OFF"
+    st.metric("AI STATUS",estado)
 
 # ---------- BOTONES ----------
 b1,b2,b3=st.columns(3)
 
-if b1.button("🤖 Activar IA"):
-    st.session_state.auto_trading=True
+if b1.button("🤖 ACTIVAR IA"):
+    st.session_state.ai_on=True
 
-if b2.button("⛔ Detener IA"):
-    st.session_state.auto_trading=False
+if b2.button("🛑 DETENER IA"):
+    st.session_state.ai_on=False
 
-if b3.button("🟢 Comprar $100 BTC"):
-    r=crear_orden("buy",100)
-    st.write(r)
+if b3.button("🟢 COMPRAR $100"):
+    st.write(order("buy",100))
 
-# ---------- IA AUTOMATICA ----------
-if st.session_state.auto_trading:
+# ---------- IA ----------
+st.divider()
 
-    st.success("IA OPERANDO")
+if st.session_state.ai_on:
+
+    st.success("IA OPERANDO EN MERCADO")
 
     if rsi_actual<30:
 
         st.write("🟢 IA COMPRA BTC")
-        crear_orden("buy",100)
+        order("buy",100)
 
     elif rsi_actual>70:
 
         st.write("🔴 IA VENDE BTC")
-        crear_orden("sell",100)
+        order("sell",100)
 
     else:
 
-        st.write("⏳ IA esperando señal")
+        st.write("⏳ IA ANALIZANDO MERCADO")
 
 else:
 
     st.warning("IA DESACTIVADA")
 
+# ---------- HISTORIAL ----------
+st.divider()
+
+st.subheader("📊 HISTORIAL DE TRADES")
+
+st.line_chart(df["price"])
+
 # ---------- REFRESH ----------
-time.sleep(20)
+time.sleep(15)
 st.rerun()
