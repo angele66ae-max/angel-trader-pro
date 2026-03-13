@@ -6,31 +6,42 @@ import hmac
 import json
 import pandas as pd
 
-# --- API KEYS ---
-API_KEY = "TU_API_KEY"
-API_SECRET = "TU_API_SECRET"
+# ---------- CONFIG ----------
+st.set_page_config(layout="wide", page_title="SHARK AI TRADER")
+
+# ---------- API ----------
+API_KEY = st.secrets.get("BITSO_API_KEY","")
+API_SECRET = st.secrets.get("BITSO_API_SECRET","")
 
 BASE_URL = "https://api.bitso.com"
 
-st.set_page_config(page_title="SHARK TRADER", layout="wide")
+# ---------- ESTILO ----------
+st.markdown("""
+<style>
+.stApp {background-color:#050505;color:#00eaff;}
+.block-container {padding-top:2rem;}
+</style>
+""", unsafe_allow_html=True)
 
-st.title("🦈 SHARK AUTO TRADER")
+st.title("🦈 SHARK AI TRADER")
+
+# ---------- SESSION ----------
+if "auto_trading" not in st.session_state:
+    st.session_state.auto_trading = False
 
 # ---------- PRECIO ----------
 def get_price(book="btc_mxn"):
     try:
         r = requests.get(f"{BASE_URL}/v3/ticker/?book={book}")
-        data = r.json()
-        return float(data["payload"]["last"])
+        return float(r.json()["payload"]["last"])
     except:
         return 0
 
-# ---------- HISTORIAL ----------
+# ---------- TRADES ----------
 def get_trades():
     try:
         r = requests.get(f"{BASE_URL}/v3/trades/?book=btc_mxn&limit=100")
-        trades = r.json()["payload"]
-        df = pd.DataFrame(trades)
+        df = pd.DataFrame(r.json()["payload"])
         df["price"] = df["price"].astype(float)
         return df
     except:
@@ -38,6 +49,7 @@ def get_trades():
 
 # ---------- RSI ----------
 def calculate_rsi(series, period=14):
+
     delta = series.diff()
 
     gain = delta.clip(lower=0)
@@ -52,79 +64,92 @@ def calculate_rsi(series, period=14):
     return rsi
 
 # ---------- ORDEN ----------
-def crear_orden(side, amount_mxn):
+def crear_orden(side, amount):
 
-    path = "/v3/orders"
-    nonce = str(int(time.time()*1000))
+    path="/v3/orders"
+    nonce=str(int(time.time()*1000))
 
-    order = {
-        "book": "btc_mxn",
-        "side": side,
-        "type": "market",
-        "major": amount_mxn
+    order={
+        "book":"btc_mxn",
+        "side":side,
+        "type":"market",
+        "major":amount
     }
 
-    body = json.dumps(order)
+    body=json.dumps(order)
 
-    message = nonce + "POST" + path + body
+    message=nonce+"POST"+path+body
 
-    signature = hmac.new(
+    signature=hmac.new(
         API_SECRET.encode(),
         message.encode(),
         hashlib.sha256
     ).hexdigest()
 
-    headers = {
-        "Authorization": f"Bitso {API_KEY}:{nonce}:{signature}",
-        "Content-Type": "application/json"
+    headers={
+        "Authorization":f"Bitso {API_KEY}:{nonce}:{signature}",
+        "Content-Type":"application/json"
     }
 
-    r = requests.post(
-        BASE_URL + path,
-        headers=headers,
-        data=body
-    )
+    r=requests.post(BASE_URL+path,headers=headers,data=body)
 
     return r.json()
 
-# ---------- ANALISIS ----------
+# ---------- PANEL ----------
+col1,col2,col3=st.columns(3)
 
-df = get_trades()
+precio=get_price()
+
+df=get_trades()
 
 if not df.empty:
 
-    rsi = calculate_rsi(df["price"])
-    rsi_actual = rsi.iloc[-1]
+    rsi=calculate_rsi(df["price"])
+    rsi_actual=float(rsi.iloc[-1])
 
-    precio = get_price()
+else:
+    rsi_actual=0
 
-    st.metric("Precio BTC", f"${precio:,.0f} MXN")
-    st.metric("RSI", round(rsi_actual,2))
+col1.metric("BTC PRECIO",f"${precio:,.0f} MXN")
+col2.metric("RSI",round(rsi_actual,2))
+col3.metric("IA ACTIVA","SI" if st.session_state.auto_trading else "NO")
 
-    if rsi_actual < 30:
+# ---------- BOTONES ----------
+b1,b2,b3=st.columns(3)
 
-        st.success("🟢 Señal de COMPRA")
+if b1.button("🤖 Activar IA"):
+    st.session_state.auto_trading=True
 
-        if st.button("Comprar 100 MXN BTC"):
-            respuesta = crear_orden("buy",100)
-            st.write(respuesta)
+if b2.button("⛔ Detener IA"):
+    st.session_state.auto_trading=False
 
-    elif rsi_actual > 70:
+if b3.button("🟢 Comprar $100 BTC"):
+    r=crear_orden("buy",100)
+    st.write(r)
 
-        st.error("🔴 Señal de VENTA")
+# ---------- IA AUTOMATICA ----------
+if st.session_state.auto_trading:
 
-        if st.button("Vender 100 MXN BTC"):
-            respuesta = crear_orden("sell",100)
-            st.write(respuesta)
+    st.success("IA OPERANDO")
+
+    if rsi_actual<30:
+
+        st.write("🟢 IA COMPRA BTC")
+        crear_orden("buy",100)
+
+    elif rsi_actual>70:
+
+        st.write("🔴 IA VENDE BTC")
+        crear_orden("sell",100)
 
     else:
 
-        st.warning("⏳ Esperando señal")
+        st.write("⏳ IA esperando señal")
 
 else:
 
-    st.error("No se pudo obtener datos del mercado")
+    st.warning("IA DESACTIVADA")
 
-# ---------- AUTO REFRESH ----------
-time.sleep(30)
+# ---------- REFRESH ----------
+time.sleep(20)
 st.rerun()
