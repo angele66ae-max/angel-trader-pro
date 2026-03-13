@@ -1,104 +1,103 @@
 import streamlit as st
 import time, requests, hashlib, hmac
 import pandas as pd
-import mplfinance as mpf
-from io import BytesIO
 from datetime import datetime
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(layout="wide", page_title="SHARK NEON v8.9")
+# --- CONFIGURACIÓN CORE ---
+st.set_page_config(layout="wide", page_title="SHARK NEON v9.0")
 
-# --- CREDENCIALES ---
-API_KEY = str(st.secrets.get("BITSO_API_KEY", "")).strip()
-API_SECRET = str(st.secrets.get("BITSO_API_SECRET", "")).strip()
+# --- CREDENCIALES (Limpia espacios invisibles) ---
+API_KEY = st.secrets.get("BITSO_API_KEY", "").strip()
+API_SECRET = st.secrets.get("BITSO_API_SECRET", "").strip()
 
-# --- ESTILO SHARK ---
+# --- ESTILO VISUAL ---
 st.markdown("""
     <style>
-    .stApp { background-color: #020205; color: #bc13fe; }
-    .status-box { border: 2px solid #00d4ff; padding: 15px; border-radius: 10px; background: rgba(0,0,0,0.8); }
+    .stApp { background-color: #020205; color: #00d4ff; }
+    .card { background: rgba(20, 0, 40, 0.9); border: 1px solid #bc13fe; padding: 20px; border-radius: 15px; box-shadow: 0 0 20px #bc13fe; }
     </style>
     """, unsafe_allow_html=True)
 
-def bitso_request(path):
-    """Protocolo de Conexión Directa v8.9"""
+def bitso_api_call(method, path):
+    """Motor de conexión de alta fidelidad v9.0"""
     nonce = str(int(time.time() * 1000))
-    message = nonce + "GET" + path
+    message = nonce + method + path
     signature = hmac.new(API_SECRET.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
     
     headers = {
         'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}',
-        'Content-Type': 'application/json',
-        'User-Agent': 'SharkSystem/8.9'
+        'Content-Type': 'application/json'
     }
-    # Forzamos la URL limpia sin parámetros extra
-    return requests.get(f"https://api.bitso.com{path}", headers=headers, timeout=10)
-
-def get_data():
-    if not API_KEY or not API_SECRET: return None, "Faltan Credenciales"
     
-    # SISTEMA DE DOBLE RUTA: Si una da 404, probamos la otra automáticamente
-    rutas = ["/v3/balances", "/api/v3/balances"]
-    ultimo_error = ""
-    
-    for r_path in rutas:
-        try:
-            r = bitso_request(r_path)
-            if r.status_code == 200: 
-                return r.json()['payload']['balances'], "OK"
-            ultimo_error = f"Error {r.status_code}"
-        except Exception as e:
-            ultimo_error = str(e)
-            
-    return None, ultimo_error
+    url = f"https://api.bitso.com{path}"
+    return requests.get(url, headers=headers)
 
-def get_ticker(book):
+def get_wallet():
+    if not API_KEY: return None, "Faltan llaves en Secrets"
+    try:
+        # Usamos el endpoint más básico para forzar la respuesta
+        r = bitso_api_call("GET", "/v3/balances")
+        if r.status_code == 200:
+            return r.json()['payload']['balances'], "OK"
+        return None, f"Error {r.status_code}: {r.json().get('error', {}).get('message', 'Recurso no encontrado')}"
+    except Exception as e:
+        return None, str(e)
+
+def get_price(book):
     try:
         r = requests.get(f"https://api.bitso.com/v3/ticker/?book={book}").json()
         return float(r['payload']['last'])
     except: return 0.0
 
-# --- INTERFAZ ---
-st.title("🦈 SHARK SYSTEM: NEON CORE v8.9")
+# --- UI ---
+st.title("🦈 SHARK SYSTEM v9.0")
+st.write(f"Protocolo de Red: **Starship 2026** | Usuario: **Pavo Free Fire**")
 
-col1, col2 = st.columns([2, 1])
+col_bal, col_meta = st.columns([2, 1])
 
-with col2:
-    st.subheader("📡 ESTADO DEL NODO")
-    balances, status = get_data()
-    st.markdown(f"""
-    <div class="status-box">
-        <b>SISTEMA:</b> {"🟢 ONLINE" if status == "OK" else "🔴 FALLO DE RUTA"}<br>
-        <b>ERROR:</b> {status}<br>
-        <b>API:</b> {API_KEY[:6]}...
-    </div>
-    """, unsafe_allow_html=True)
-    
-    if status != "OK":
-        st.warning("⚠️ SIGUE EL PLAN B: Borra la API 'casa tiburones' y crea una nueva con nombre 'SharkFinal'. Asegúrate de marcar 'Ver saldos'.")
-
-with col1:
-    # TICKERS RÁPIDOS
-    m1, m2, m3 = st.columns(3)
-    m1.metric("₿ BTC", f"${get_ticker('btc_mxn'):,.0f} MXN")
-    m2.metric("Ξ ETH", f"${get_ticker('eth_mxn'):,.0f} MXN")
-    m3.metric("🌐 USD", f"${get_ticker('usd_mxn'):,.2f}")
-
+with col_bal:
+    balances, status = get_wallet()
     if status == "OK":
-        st.success("¡CONEXIÓN ESTABLECIDA!")
-        # TABLA DE SALDOS
-        df_list = []
+        st.success("🛰️ CONEXIÓN ESTABLE")
+        wallet_data = []
         total_mxn = 0.0
         for b in balances:
             qty = float(b['total'])
-            if qty > 0.00001:
+            if qty > 0:
                 coin = b['currency'].upper()
-                price = 1.0 if coin == "MXN" else get_ticker(f"{coin.lower()}_mxn")
+                price = 1.0 if coin == "MXN" else get_price(f"{coin.lower()}_mxn")
                 val = qty * price
                 total_mxn += val
-                df_list.append({"TOKEN": coin, "CANTIDAD": qty, "VALOR MXN": f"${val:,.2f}"})
+                wallet_data.append({"TOKEN": coin, "SALDO": qty, "VALOR MXN": f"${val:,.2f}"})
         
-        st.table(pd.DataFrame(df_list))
+        st.table(pd.DataFrame(wallet_data))
         st.metric("BALANCE TOTAL", f"${total_mxn:,.2f} MXN")
-        
-        # PROGRESO SUV 1.7M
+    else:
+        st.error(f"Fallo de Nodo: {status}")
+        st.info("🆘 **SOLUCIÓN FINAL:** Si ves Error 404, la API Key 'casa tiburones' está muerta. Crea una nueva llamada 'SharkV9' y cámbiala en Streamlit.")
+
+with col_meta:
+    st.subheader("🎯 OBJETIVO SUV")
+    # Meta de la camioneta de 1.7 millones
+    meta = 1700000
+    actual = total_mxn if status == "OK" else 0.0
+    progreso = min(actual / meta, 1.0)
+    
+    st.markdown(f"""
+    <div class="card">
+        <h3>Meta: $1,700,000 MXN</h3>
+        <p>Progreso actual: {progreso*100:.2f}%</p>
+    </div>
+    """, unsafe_allow_html=True)
+    st.progress(progreso)
+    
+    if actual >= meta:
+        st.balloons()
+        st.success("¡LO LOGRASTE, TIBURÓN!")
+
+# --- TICKERS ---
+st.divider()
+c1, c2, c3 = st.columns(3)
+c1.metric("₿ BTC", f"${get_price('btc_mxn'):,.0f}")
+c2.metric("Ξ ETH", f"${get_price('eth_mxn'):,.0f}")
+c3.metric("💵 USD", f"${get_price('usd_mxn'):,.2f}")
