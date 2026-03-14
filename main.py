@@ -39,11 +39,31 @@ st.markdown(f"""
     @keyframes blinker {{ 50% {{ opacity: 0; }} }}
 </style>
 """, unsafe_allow_html=True)
-
 # --- MOTOR DE CONEXIÓN REAL CON BITSO ---
 def get_bitso_data(path):
+
     if BITSO_API_KEY == "TU_API_KEY_AQUI":
-        return None # Evita errores si no hay llaves
+        return None
+
     nonce = str(int(time.time() * 1000))
+
     message = nonce + "GET" + path
-    signature = hmac.new(BITSO_API_SECRET.encode('utf-8'), message.encode('
+
+    signature = hmac.new(
+        BITSO_API_SECRET.encode("utf-8"),
+        message.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+    auth_header = f"Bitso {BITSO_API_KEY}:{nonce}:{signature}"
+
+    headers = {
+        "Authorization": auth_header
+    }
+
+    response = requests.get(
+        f"https://api.bitso.com{path}",
+        headers=headers
+    )
+
+    return response.json()
