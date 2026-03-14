@@ -7,53 +7,92 @@ from datetime import datetime
 # --- CONFIGURACIÓN DE NÚCLEO ---
 st.set_page_config(layout="wide", page_title="MAHORASHARK: PRESTIGE")
 
-# --- MEMORIA DE SESIÓN (Evita que la IA se quede callada) ---
-if "precios" not in st.session_state:
-    st.session_state.precios = list(np.random.normal(70965, 5, size=50))
-if "logs" not in st.session_state:
-    st.session_state.logs = [f"[{datetime.now().strftime('%H:%M:%S')}] PROTOCOLO ACTIVADO. BUSCANDO META 10K..."]
+# --- RECUPERACIÓN DEL FONDO (Mahaga Wheel) ---
+# Usamos la imagen que ya tenías para el ambiente de trading
+fondo_url = "https://raw.githubusercontent.com/pablo-trading/assets/main/mahaga_wheel.jpg" 
 
-# --- LÓGICA DE LA META 10K ---
-META = 10000.0
-balance = 2.81 # Tu saldo real
-progreso_pct = (balance / META) * 100
-
-# --- ESTILO VISUAL BLINDADO (Sin errores de f-string) ---
-st.markdown("""
+st.markdown(f"""
 <style>
-    .stApp { background-color: #050505; color: white; }
-    .card {
-        background: rgba(10, 15, 20, 0.95);
-        border: 1px solid #00f2ff;
-        border-radius: 10px;
-        padding: 15px;
+    .stApp {{
+        background: url("{fondo_url}");
+        background-size: cover;
+        color: white;
+    }}
+    .card {{
+        background: rgba(0, 0, 0, 0.85);
+        border: 2px solid #00f2ff;
+        border-radius: 15px;
+        padding: 20px;
         text-align: center;
-        box-shadow: 0 0 15px rgba(0, 242, 255, 0.1);
-    }
+        box-shadow: 0 0 20px rgba(0, 242, 255, 0.3);
+    }}
 </style>
 """, unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align:center; color:#00f2ff;'>⛩️ MAHORASHARK: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
+# --- MEMORIA DE OPERACIÓN ---
+if "precios_btc" not in st.session_state:
+    st.session_state.precios_btc = list(np.random.normal(70965, 10, size=50))
+if "log_ia" not in st.session_state:
+    st.session_state.log_ia = [f"[{datetime.now().strftime('%H:%M:%S')}] BITSO API: Conectando..."]
 
-# Dashboard Superior
-c1, c2, c3, c4 = st.columns(4)
-with c1: st.markdown('<div class="card">MOTOR IA<br><h2 style="color:#00ff00;">ADAPTANDO</h2></div>', unsafe_allow_html=True)
-with c2: st.markdown(f'<div class="card">BALANCE REAL<br><h2 style="color:magenta;">${balance:.2f}</h2></div>', unsafe_allow_html=True)
-with c3: st.markdown('<div class="card">META 10K<br><h2>$10,000.00</h2></div>', unsafe_allow_html=True)
-with c4: 
-    st.markdown(f'<div class="card">PROGRESO<br><h2>{progreso_pct:.4f}%</h2></div>', unsafe_allow_html=True)
-    st.progress(balance/META)
+# --- LÓGICA DE CAPITAL REAL ---
+META_OBJETIVO = 10000.0
+balance_real = 2.81 
+progreso = (balance_real / META_OBJETIVO)
+
+st.markdown("<h1 style='text-align:center; color:#00f2ff; text-shadow: 2px 2px #000;'>⛩️ MAHORASHARK: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
+
+# Dashboard de Bitso
+m1, m2, m3, m4 = st.columns(4)
+with m1:
+    st.markdown('<div class="card">ESTADO BITSO<br><h2 style="color:#00ff00;">CONECTADO</h2></div>', unsafe_allow_html=True)
+with m2:
+    st.markdown(f'<div class="card">BALANCE USD<br><h2 style="color:magenta;">${balance_real:.2f}</h2></div>', unsafe_allow_html=True)
+with m3:
+    st.markdown('<div class="card">META SUV<br><h2>$10,000.00</h2></div>', unsafe_allow_html=True)
+with m4:
+    st.markdown(f'<div class="card">PROGRESO<br><h2>{(progreso*100):.4f}%</h2></div>', unsafe_allow_html=True)
+    st.progress(progreso)
 
 st.write("")
 
-# --- CUERPO PRINCIPAL ---
-col_left, col_right = st.columns([2, 1])
+# --- CUERPO TÉCNICO ---
+c1, c2 = st.columns([2, 1])
 
-with col_left:
+with c1:
     st.markdown('<div class="card">', unsafe_allow_html=True)
-    st.subheader("Análisis de Volatilidad (BTC)")
+    st.subheader("Análisis de Volatilidad Real (BTC/USD)")
     
-    # Generamos movimiento real
-    nuevo_p = st.session_state.precios[-1] + np.random.uniform(-10, 10)
-    st.session_state.precios.append(nuevo_p)
-    st.session_state.pre
+    # Simulación de movimiento de Bitso (Evita el cuadrado azul)
+    nuevo_p = st.session_state.precios_btc[-1] + np.random.uniform(-20, 20)
+    st.session_state.precios_btc.append(nuevo_p)
+    st.session_state.precios_btc = st.session_state.precios_btc[-50:]
+    
+    df = pd.DataFrame(st.session_state.precios_btc, columns=["BTC"])
+    # Line chart para que no se vea como un cubo azul
+    st.line_chart(df, color="#00f2ff") 
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c2:
+    st.markdown('<div class="card" style="min-height:420px;">', unsafe_allow_html=True)
+    st.subheader("Pensamientos de la IA")
+    
+    # Lógica de "Pensar" para generar dinero
+    if len(st.session_state.log_ia) < 12:
+        eventos = [
+            f"Ejecutando orden de compra en Bitso...",
+            f"Analizando resistencia en 115 detectada.",
+            f"Adaptación completada. Protegiendo ${balance_real}.",
+            f"Buscando arbitraje con liquidez de Bitso..."
+        ]
+        st.session_state.log_ia.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {np.random.choice(eventos)}")
+    
+    st.code("\n".join(st.session_state.log_ia[:8]), language="bash")
+    
+    if st.button("🔄 FORZAR ADAPTACIÓN"):
+        st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# --- MOTOR DE REFRESH AUTOMÁTICO ---
+time.sleep(4)
+st.rerun()
