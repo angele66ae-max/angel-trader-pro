@@ -67,5 +67,11 @@ if st.session_state.get("hunting", False):
     if rsi_test < 30 and usd_real > 1.0:
         st.write("🔥 COMPRANDO BTC CON 1 USD REAL...")
         order = bitso_auth_request("POST", "/v3/orders", {
-            "book": "btc_usd", "side": "buy", "type": "
-    
+        # --- REEMPLAZA TU BLOQUE DE ORDEN CON ESTE ---
+        order = bitso_auth_request("POST", "/v3/orders", {
+            "book": "btc_usd", 
+            "side": "buy", 
+            "type": "market", 
+            "major": "1.00"
+        })
+# ---------------------------------------------
