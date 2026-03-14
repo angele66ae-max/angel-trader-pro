@@ -1,112 +1,120 @@
 import streamlit as st
-import time, requests, random
+import time, requests
 import pandas as pd
 import plotly.graph_objects as go
 
-# --- 1. CONFIGURACIÓN DE PANTALLA ANCHA ---
-st.set_page_config(layout="wide", page_title="SHARK AI PRESTIGE", page_icon="🦈")
+# --- CONFIGURACIÓN DE PANTALLA ---
+st.set_page_config(layout="wide", page_title="SHARK PRESTIGE v11", page_icon="🦈")
 
-# --- 2. EL "LOOK" PROFESIONAL (CSS NEÓN) ---
+# --- EL ESTILO "SHARK GOLD" (CSS AVANZADO) ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=JetBrains+Mono&display=swap');
     
-    /* Fondo Oscuro Total */
+    /* Fondo con cuadrícula técnica */
     .stApp {
-        background-color: #050a0f;
+        background-color: #020508;
+        background-image: 
+            linear-gradient(rgba(0, 234, 255, 0.03) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(0, 234, 255, 0.03) 1px, transparent 1px);
+        background-size: 30px 30px;
         color: #e0e0e0;
         font-family: 'JetBrains Mono', monospace;
     }
-    
-    /* Tarjetas de Cristal */
-    .glass-card {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(0, 234, 255, 0.2);
-        border-radius: 15px;
-        padding: 20px;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+
+    /* Tarjetas de Neón con Brillo Externo */
+    .gold-card {
+        background: rgba(0, 0, 0, 0.6);
+        border: 1px solid #00eaff;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 0 15px rgba(0, 234, 255, 0.15);
+        transition: 0.3s;
     }
-    
-    /* Título Neón Animado */
-    .neon-text {
+    .gold-card:hover {
+        box-shadow: 0 0 25px rgba(0, 234, 255, 0.4);
+        border: 1px solid #bc13fe;
+    }
+
+    /* Título con efecto Glow */
+    .main-title {
         font-family: 'Orbitron', sans-serif;
         color: #00eaff;
-        text-shadow: 0 0 10px #00eaff, 0 0 20px #bc13fe;
+        text-shadow: 0 0 20px rgba(0, 234, 255, 0.8);
         text-align: center;
-        font-size: 38px;
+        font-size: 45px;
+        letter-spacing: 5px;
         margin-bottom: 30px;
     }
-    
-    /* Caja de Logs de la IA */
-    .ai-brain {
-        background-color: #000;
-        border: 1px solid #00ff00;
+
+    /* Consola de la IA */
+    .ai-console {
+        background: #000;
+        border-left: 4px solid #00ff00;
         color: #00ff00;
         padding: 15px;
-        border-radius: 8px;
-        height: 250px;
-        overflow-y: auto;
+        font-family: 'JetBrains Mono', monospace;
         font-size: 13px;
-        box-shadow: inset 0 0 10px #00ff00;
+        height: 280px;
+        overflow-y: auto;
+        box-shadow: inset 0 0 15px rgba(0, 255, 0, 0.1);
     }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. LÓGICA DE DATOS ---
+# --- LÓGICA DE DATOS ---
 if "logs" not in st.session_state:
-    st.session_state.logs = [f"[{time.strftime('%H:%M:%S')}] SISTEMA INICIADO. OPERADOR: PAVO FREE FIRE"]
+    st.session_state.logs = [f"[{time.strftime('%H:%M:%S')}] STARSHIP PROTOCOL ACTIVE. USER: PAVO FREE FIRE"]
 
-# Datos simulados de tu última captura
-precio_btc = 1278010
-rsi_val = 40.22
-meta_objetivo = 1700000
-progreso = (precio_btc / meta_objetivo) * 100
+# Datos actuales
+precio_actual = 1273150 
+meta_suv = 1700000
+progreso = (precio_actual / meta_suv) * 100
 
-def add_log(msg):
-    st.session_state.logs.insert(0, f"[{time.strftime('%H:%M:%S')}] {msg}")
-    st.session_state.logs = st.session_state.logs[:15]
+# --- INTERFAZ MAESTRA ---
+st.markdown('<div class="main-title">SHARK AI SYSTEM v11</div>', unsafe_allow_html=True)
 
-# --- 4. DISEÑO DE LA TERMINAL ---
-st.markdown('<div class="neon-text">🦈 SHARK AI: PRESTIGE CENTER</div>', unsafe_allow_html=True)
-
-# Fila 1: Métricas de Alto Impacto
-m1, m2, m3, m4 = st.columns(4)
-with m1:
-    st.markdown(f'<div class="glass-card"><p style="color:#00eaff">MARKET PRICE</p><h3>${precio_btc:,.0f}</h3><small>MXN</small></div>', unsafe_allow_html=True)
-with m2:
-    st.markdown(f'<div class="glass-card"><p style="color:#bc13fe">STRENGTH RSI</p><h3>{rsi_val}</h3><small>NEUTRAL</small></div>', unsafe_allow_html=True)
-with m3:
-    st.markdown(f'<div class="glass-card"><p style="color:#00ff00">AI ENGINE</p><h3>ACTIVE</h3><small>v10.5 CORE</small></div>', unsafe_allow_html=True)
-with m4:
-    st.markdown(f'<div class="glass-card"><p style="color:#00eaff">SUV GOAL</p><h3>{progreso:.1f}%</h3><progress value="{progreso}" max="100" style="width:100%"></progress></div>', unsafe_allow_html=True)
+# Top Bar: Métricas de alta precisión
+c1, c2, c3, c4 = st.columns(4)
+with c1:
+    st.markdown(f'<div class="gold-card"><p style="color:#00eaff;font-size:12px">MARKET STATUS</p><h2 style="margin:0">${precio_actual:,.0f}</h2><small>MXN / BTC</small></div>', unsafe_allow_html=True)
+with c2:
+    st.markdown(f'<div class="gold-card"><p style="color:#bc13fe;font-size:12px">ALGO STRENGTH</p><h2 style="margin:0">40.2</h2><small>RSI NEUTRAL</small></div>', unsafe_allow_html=True)
+with c3:
+    st.markdown(f'<div class="gold-card"><p style="color:#00ff00;font-size:12px">AI ENGINE</p><h2 style="margin:0">READY</h2><small>NODE 17733</small></div>', unsafe_allow_html=True)
+with c4:
+    # Progreso hacia tu meta de 1.7M para la SUV
+    st.markdown(f'<div class="gold-card"><p style="color:#00eaff;font-size:12px">SUV GOAL</p><h2 style="margin:0">{progreso:.1f}%</h2><progress value="{progreso}" max="100" style="width:100%"></progress></div>', unsafe_allow_html=True)
 
 st.write("")
 
-# Fila 2: Gráfico y Pensamientos de la IA
-col_graph, col_logs = st.columns([2, 1])
+# Panel de Control y Análisis
+col_left, col_right = st.columns([2, 1])
 
-with col_graph:
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.subheader("📈 LIVE ANALYSIS")
-    # Gráfico profesional con Plotly
-    fig = go.Figure(go.Scatter(y=[1275000, 1279000, 1278010], fill='tozeroy', line_color='#00eaff', line_width=4))
-    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=300, 
+with col_left:
+    st.markdown('<div class="gold-card">', unsafe_allow_html=True)
+    st.subheader("📡 NEON STREAM ANALYSIS")
+    # Gráfico técnico mejorado
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(y=[1270000, 1274000, 1272000, 1273150], fill='tozeroy', 
+                             line=dict(color='#00eaff', width=3), fillcolor='rgba(0, 234, 255, 0.1)'))
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=350,
                       margin=dict(l=0,r=0,t=0,b=0), xaxis=dict(visible=False), yaxis=dict(gridcolor='rgba(255,255,255,0.05)'))
     st.plotly_chart(fig, use_container_width=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-with col_logs:
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.subheader("🕵️ PENSAMIENTOS DE LA IA")
-    log_content = "".join([f"<div>{l}</div>" for l in st.session_state.logs])
-    st.markdown(f'<div class="ai-brain">{log_content}</div>', unsafe_allow_html=True)
+with col_right:
+    st.markdown('<div class="gold-card">', unsafe_allow_html=True)
+    st.subheader("🕵️ PENSAMIENTOS IA")
+    log_html = "".join([f"<div style='margin-bottom:5px'>{l}</div>" for l in st.session_state.logs])
+    st.markdown(f'<div class="ai-console">{log_html}</div>', unsafe_allow_html=True)
     
-    if st.button("🚀 FORZAR ANÁLISIS", use_container_width=True):
-        add_log(f"Analizando BTC/MXN... RSI estable en {rsi_val}. No hay riesgo.")
+    st.write("")
+    if st.button("⚡ EJECUTAR ESCANEO", use_container_width=True):
+        st.session_state.logs.insert(0, f"[{time.strftime('%H:%M:%S')}] Analizando bloques... Todo estable.")
         st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- REFRESH ---
+# Auto-refresh cada 10 segundos
 time.sleep(10)
 st.rerun()
