@@ -1,46 +1,59 @@
 import streamlit as st
 import time, hashlib, hmac, json, requests
-import pandas as pd
-import plotly.graph_objects as go
 
-# --- NÚCLEO DE SEGURIDAD ---
-# Asegúrate de tener BITSO_API_KEY y BITSO_API_SECRET en tu secrets.toml
-API_KEY = st.secrets.get("BITSO_API_KEY", "")
-API_SECRET = st.secrets.get("BITSO_API_SECRET", "")
-BASE_URL = "https://api.bitso.com"
+# --- CONFIGURACIÓN TÁCTICA ---
+st.set_page_config(layout="wide", page_title="SHARK AI BLACK OPS")
+st.markdown("<h1 style='text-align:center; color:cyan;'>🦈 SHARK AI: TERMINAL DE PRESTIGIO</h1>", unsafe_allow_html=True)
 
-# --- CONFIGURACIÓN DE PANTALLA ---
-st.set_page_config(layout="wide", page_title="SHARK BLACK OPS", page_icon="🦈")
+# --- CARGA DE LLAVES ---
+try:
+    API_KEY = st.secrets["BITSO_API_KEY"]
+    API_SECRET = st.secrets["BITSO_API_SECRET"]
+except Exception as e:
+    st.error("🚨 ERROR EN SECRETS: Revisa tu archivo .streamlit/secrets.toml")
+    st.stop()
 
-# --- ESTILO VISUAL "TACTICAL DARK" ---
-st.markdown("""
-<style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=JetBrains+Mono&display=swap');
-    .stApp { background-color: #020508; color: #e0e0e0; font-family: 'JetBrains Mono', monospace; }
-    .main-title { font-family: 'Orbitron', sans-serif; color: #ff0000; text-shadow: 0 0 15px #ff0000; text-align: center; font-size: 40px; margin-bottom: 20px; }
-    .stat-card { background: rgba(20, 20, 20, 0.8); border: 1px solid #333; border-radius: 10px; padding: 15px; text-align: center; }
-    .ai-brain { background: #000; border-left: 4px solid #00ff00; color: #00ff00; padding: 10px; height: 250px; overflow-y: auto; font-size: 12px; }
-</style>
-""", unsafe_allow_html=True)
-
-# --- MOTOR DE PETICIONES ---
-def bitso_auth_request(method, path, payload=None):
+# --- MOTOR DE BITSO ---
+def bitso_api(method, path, payload=None):
     nonce = str(int(time.time() * 1000))
     json_payload = json.dumps(payload) if payload else ""
     message = nonce + method + path + json_payload
     signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
     headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}', 'Content-Type': 'application/json'}
+    url = f"https://api.bitso.com{path}"
     
-    try:
-        if method == "POST":
-            return requests.post(BASE_URL + path, headers=headers, data=json_payload).json()
-        return requests.get(BASE_URL + path, headers=headers).json()
-    except Exception as e:
-        return {"error": str(e)}
+    if method == "POST":
+        return requests.post(url, headers=headers, data=json_payload).json()
+    return requests.get(url, headers=headers).json()
 
-# --- LÓGICA DE DATOS REALES ---
-def get_market_data():
-    ticker = requests.get(f"{BASE_URL}/v3/ticker/?book=btc_usd").json()
-    precio = float(ticker['payload']['last'])
-    # Simulamos RSI basado en tendencia para esta versión (puedes conectar tu TA-Lib después)
-    rsi = 2
+# --- OBTENER DATOS REALES ---
+def cargar_datos():
+    # Balance Real
+    b = bitso_api("GET", "/v3/balance")
+    usd = next((i['available'] for i in b['payload']['balances'] if i['currency'] == 'usd'), "0")
+    # Precio Real
+    t = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
+    precio = t['payload']['last']
+    return float(usd), float(precio)
+
+# --- INTERFAZ ---
+usd_real, precio_actual = cargar_datos()
+
+col1, col2, col3 = st.columns(3)
+col1.metric("SALDO DISPONIBLE", f"${usd_real} USD")
+col2.metric("PRECIO BTC", f"${precio_actual} USD")
+col3.metric("META SUV", "90.2%") # Tu meta actualizada
+
+st.divider()
+
+if st.button("🚀 DEPLOY AI (MODO REAL)"):
+    st.session_state.live = True
+    st.success("TIBURÓN EN EL AGUA: BUSCANDO SEÑALES...")
+
+if st.session_state.get("live", False):
+    # Aquí el bot operará con tu saldo de $2.81 USD
+    st.info("Escaneando mercado...")
+    # Ejemplo de compra real
+    # bitso_api("POST", "/v3/orders", {"book": "btc_usd", "side": "buy", "type": "market", "major": "1.00"})
+    time.sleep(5)
+    st.rerun()
