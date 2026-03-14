@@ -1,105 +1,90 @@
 import streamlit as st
-import pandas as pd
+import time, hashlib, hmac, json, requests
 import numpy as np
-import time
 
-# --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(layout="wide", page_title="SHARK AI: PRESTIGE CENTER")
+# --- CONFIGURACIÓN TÁCTICA DEL CENTRO DE PRESTIGIO ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK: ADAPTATION", page_icon="⛩️")
 
-# --- SISTEMA DE FONDO Y ESTILO ---
-# He usado una técnica de CSS para asegurar que el fondo cósmico cubra toda la pantalla
-fondo_url = "https://i.postimg.cc/g0K6y469/image-25526f.png"
+# URL DE TU IMAGEN (Ya configurado para el fondo)
+# Nota: Streamlit necesita una URL de imagen pública directa para el fondo
+URL_FONDO_CÓSMICO = "https://i.ibb.co/hRt2W6V/mahoraga-cosmic-crown.png" 
 
+# --- ESTILO VISUAL "MULTI-ADAPTACIÓN" ---
 st.markdown(f"""
-    <style>
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&family=JetBrains+Mono&display=swap');
+    
     .stApp {{
-        background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), 
-                    url("{fondo_url}");
+        background-color: #000000;
+        background-image: url('{URL_FONDO_CÓSMICO}');
         background-size: cover;
-        background-position: center;
+        background-position: center center;
         background-attachment: fixed;
+        color: #ffffff;
+        font-family: 'JetBrains Mono', monospace;
     }}
-    
-    /* Contenedores estilo "Prestige" */
-    .prestige-card {{
-        background-color: rgba(17, 20, 24, 0.85);
-        border: 1px solid rgba(0, 255, 255, 0.2);
-        border-radius: 10px;
-        padding: 20px;
+
+    /* Capa de contraste para legibilidad sobre el fondo cósmico */
+    .stApp::before {{
+        content: "";
+        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0, 0, 0, 0.4); z-index: -1;
+    }}
+
+    /* Tarjetas de Métricas estilo "Prestige" */
+    .metric-card {{
+        background: rgba(10, 10, 10, 0.9);
+        border: 2px solid rgba(0, 242, 255, 0.2);
+        border-radius: 12px;
+        padding: 22px;
         backdrop-filter: blur(10px);
+        text-align: center;
     }}
-    
-    .stMetric {{
-        background-color: rgba(0, 0, 0, 0.5);
-        padding: 10px;
-        border-radius: 5px;
+
+    /* Estilo para los logs de la IA */
+    .ai-logs {{
+        background: rgba(0, 0, 0, 0.95);
+        border: 2px solid #00ff00;
+        border-radius: 8px;
+        padding: 15px;
+        height: 350px;
+        overflow-y: auto;
+        color: #00ff00;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 13px;
     }}
-    </style>
-    """, unsafe_allow_html=True)
 
-# --- HEADER ---
-st.markdown("<h1 style='text-align: center; color: #e0e0e0; font-family: monospace;'>SHARK AI: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #00ffcc;'>MAHORA ADAPTATION PROTOCOL v19.3</p>", unsafe_allow_html=True)
+    /* Botón DEPLOY Táctico */
+    .stButton>button {{
+        background: linear-gradient(135deg, #004d4d 0%, #001a1a 100%);
+        color: #00f2ff !important;
+        border: 1px solid #00f2ff !important;
+        border-radius: 8px;
+        width: 100%;
+        font-family: 'Orbitron', sans-serif;
+    }}
+</style>
+""", unsafe_allow_html=True)
 
-# --- PANEL SUPERIOR: MÉTRICAS ---
-col1, col2, col3, col4 = st.columns(4)
+# --- NÚCLEO DE CONEXIÓN BITSO (Criptos) ---
+def bitso_api(method, path, payload=None):
+    try:
+        API_KEY = st.secrets["BITSO_API_KEY"]
+        API_SECRET = st.secrets["BITSO_API_SECRET"]
+        nonce = str(int(time.time() * 1000))
+        json_payload = json.dumps(payload) if payload else ""
+        message = nonce + method + path + json_payload
+        signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
+        headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}', 'Content-Type': 'application/json'}
+        url = f"https://api.bitso.com{path}"
+        if method == "POST": return requests.post(url, headers=headers, data=json_payload).json()
+        return requests.get(url, headers=headers).json()
+    except: return None
 
-with col1:
-    st.markdown('<div class="prestige-card">', unsafe_allow_html=True)
-    st.metric("MERCADO DE BTC (REAL)", "$70,705", "USD")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col2:
-    st.markdown('<div class="prestige-card">', unsafe_allow_html=True)
-    st.metric("SALDO DISPONIBLE (REAL)", "$2.81", "USD")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col3:
-    st.markdown('<div class="prestige-card">', unsafe_allow_html=True)
-    st.metric("ESTADO DEL PROTOCOLO", "ADAPTANDO", "v22.0 CORE")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with col4:
-    # Barra de meta SUV al 90.2%
-    st.markdown('<div class="prestige-card">', unsafe_allow_html=True)
-    st.write("OBJETIVO SUV")
-    st.subheader("90.2%")
-    st.progress(0.902)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-st.write("") # Espaciador
-
-# --- CUERPO PRINCIPAL: GRÁFICAS Y LOGS ---
-c_left, c_right = st.columns([2, 1])
-
-with c_left:
-    st.markdown('<div class="prestige-card">', unsafe_allow_html=True)
-    # Selector para incluir acciones
-    tipo_activo = st.radio("SELECCIONAR MERCADO:", ["BTC (Cripto)", "AAPL (Acciones)"], horizontal=True)
-    
-    if tipo_activo == "BTC (Cripto)":
-        st.subheader("Live Analysis - BTC")
-        chart_data = pd.DataFrame(np.random.randn(20, 1) + 70705, columns=['Price'])
-        st.area_chart(chart_data, color="#008080")
-    else:
-        st.subheader("Live Analysis - AAPL")
-        # Simulación de acciones
-        chart_data = pd.DataFrame(np.random.randn(20, 1) + 175, columns=['Price'])
-        st.area_chart(chart_data, color="#ff00ff")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-with c_right:
-    st.markdown('<div class="prestige-card" style="height: 450px;">', unsafe_allow_html=True)
-    st.write("🕵️ PENSAMIENTOS DE LA IA")
-    
-    if st.button("🚀 DEPLOY AI"):
-        st.success("Adaptación iniciada...")
-    
-    # Consola de Logs corregida
-    st.code(f"""
-[07:19:00] SISTEMA INICIADO.
-OPERADOR: MAHORASHARK
-[ADAPTACIÓN]: Escaneando {tipo_activo}...
-[OBJETIVO]: Venta en 115 detectada.
-    """, language="bash")
-    st.markdown('</div>', unsafe_allow_html=True)
+# --- OBTENER DATOS REALES (Bitso) ---
+# Aquí integrarías Alpaca/Yahoo Finance para acciones
+try:
+    ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()['payload']
+    precio_real = float(ticker['last'])
+    balance_data = bitso_api("GET", "/v3/balance")
+    usd_real = next((i['available'] for i in balance_data
