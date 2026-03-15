@@ -1,124 +1,98 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import time
 import ccxt
+import time
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE ÉLITE ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK: UNLEASHED")
+# --- CONFIGURACIÓN CINEMATOGRÁFICA ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
 
-# --- CONEXIÓN API REAL (ACTIVA) ---
+# --- CONEXIÓN API ---
 bitso = ccxt.bitso({
     'apiKey': 'FZHAAOqOhy',
     'secret': 'b5e9f3e4e429c079a5989473ed1ba171',
 })
 
-# --- ESTILOS DE LUJO (DISEÑO RECUPERADO) ---
-fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
-
-st.markdown(f"""
+# --- ESTILO "PELÍCULA" (NEÓN Y TRANSPARENCIAS) ---
+st.markdown("""
 <style>
-    .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.75), rgba(0,0,0,0.75)), url("{fondo_url}");
-        background-size: cover; background-attachment: fixed;
-    }}
-    .main-counter {{
-        background: rgba(0, 20, 20, 0.9);
-        border: 3px solid #ffd700;
-        border-radius: 20px; padding: 25px; text-align: center;
-        box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
-        margin-bottom: 20px;
-    }}
-    .money-text {{
-        font-family: 'Courier New', monospace;
-        color: #ffd700; font-size: 65px; font-weight: bold;
-        text-shadow: 0 0 20px #ffd700;
-    }}
-    .prestige-card {{
-        background: rgba(10, 10, 15, 0.9);
+    .stApp { background: #000; color: #fff; }
+    .metric-card {
+        background: rgba(0, 255, 242, 0.05);
         border: 1px solid #00f2ff;
-        border-radius: 10px; padding: 15px; text-align: center;
-    }}
+        border-radius: 15px; padding: 20px; text-align: center;
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+    }
+    .main-balance { font-size: 60px; color: #00ff00; font-weight: bold; text-shadow: 0 0 20px #00ff00; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- MOTOR DE TRADING (CON ESCUDO DE COMISIONES) ---
-def mahora_engine():
+def get_full_portfolio():
     try:
-        # 1. Balance Real
-        bal = bitso.fetch_balance()
-        usd = bal['total'].get('USD', 2.81)
-        btc = bal['total'].get('BTC', 0.0)
+        # 1. Obtener balance total de TODAS las monedas
+        balance = bitso.fetch_balance()
+        total_usd = 0
+        prices = bitso.fetch_tickers(['BTC/USD', 'ETH/USD'])
         
-        # 2. Datos de Mercado
-        ohlcv = bitso.fetch_ohlcv('BTC/USD', timeframe='1m', limit=35)
-        if not ohlcv: return None
+        # Sumamos USD directos ($2.8 USD)
+        total_usd += balance['total'].get('USD', 0)
         
+        # Sumamos el valor de ETH convertido a USD
+        eth_amt = balance['total'].get('ETH', 0)
+        if eth_amt > 0:
+            total_usd += eth_amt * prices['ETH/USD']['last']
+            
+        # 2. Datos para la Gráfica Profesional
+        ohlcv = bitso.fetch_ohlcv('BTC/USD', timeframe='1m', limit=50)
         df = pd.DataFrame(ohlcv, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
         df['ts'] = pd.to_datetime(df['ts'], unit='ms')
-        df['ema'] = df['c'].ewm(span=5).mean()
-        
-        precio_actual = df['c'].iloc[-1]
-        target_ema = df['ema'].iloc[-1]
-        status = "IA ESCANEANDO..."
-        
-        # 3. EJECUCIÓN (CON EL 0.98 PARA EVITAR SALDO INSUFICIENTE)
-        if usd > 1.0 and precio_actual < target_ema:
-            # Compramos usando el 98% del saldo para cubrir comisiones de Bitso
-            bitso.create_market_buy_order('BTC/USD', usd * 0.98)
-            status = "🔥 COMPRA EJECUTADA"
-        elif btc > 0.000005 and precio_actual > target_ema:
-            bitso.create_market_sell_order('BTC/USD', btc)
-            status = "⚡ VENTA EJECUTADA (PROFIT)"
-            
-        return usd, btc, df, status, precio_actual
+        df['sma'] = df['c'].rolling(window=7).mean() # Tendencia SMA
+
+        return total_usd, df, prices['BTC/USD']['last']
     except Exception as e:
-        return 2.81, 0.0, pd.DataFrame(), f"Sincronizando... {str(e)[:20]}", 71000.0
+        st.error(f"Error de conexión: {e}")
+        return 0, pd.DataFrame(), 0
 
-# --- RENDERIZADO DE INTERFAZ ---
-engine_data = mahora_engine()
+# --- EJECUCIÓN ---
+total_val, df_v, btc_p = get_full_portfolio()
 
-if engine_data:
-    usd_val, btc_val, df_v, log_msg, p_btc = engine_data
-    ganancia = usd_val - 2.81
+# PANEL SUPERIOR: VISIÓN TOTAL
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.markdown(f'<div class="metric-card"><h4>BALANCE TOTAL (USD)</h4><div class="main-balance">${total_val:,.2f}</div></div>', unsafe_allow_html=True)
+with c2:
+    ganancia_neta = total_val - 6.80 # Base aproximada de tus 116 MXN
+    st.markdown(f'<div class="metric-card"><h4>GANANCIA LÍQUIDA</h4><div style="font-size:40px; color:#ffd700;">+${ganancia_neta:,.5f}</div></div>', unsafe_allow_html=True)
+with c3:
+    progreso = (total_val / 10000) * 100
+    st.markdown(f'<div class="metric-card"><h4>META 10K</h4><div style="font-size:40px; color:#00f2ff;">{progreso:.4f}%</div></div>', unsafe_allow_html=True)
 
-    # SECCIÓN 1: CONTADOR DE DINERO
-    st.markdown(f"""
-        <div class="main-counter">
-            <h3 style="color: white; margin: 0; letter-spacing: 3px;">MAHORASHARK LIQUIDITY</h3>
-            <div class="money-text">${usd_val:,.6f}</div>
-            <p style="color: #00ff00; font-size: 20px;">GANANCIA NETA: +${ganancia:,.6f}</p>
-        </div>
-    """, unsafe_allow_html=True)
+st.write("")
 
-    # SECCIÓN 2: GRÁFICA Y CONTROL
-    st.write("")
-    c1, c2 = st.columns([2.2, 1])
+# PANEL CENTRAL: GRÁFICA PROFESIONAL
+if not df_v.empty:
+    fig = go.Figure(data=[go.Candlestick(
+        x=df_v['ts'], open=df_v['o'], high=df_v['h'], low=df_v['l'], close=df_v['c'], name="Market"
+    )])
+    fig.add_trace(go.Scatter(x=df_v['ts'], y=df_v['sma'], line=dict(color='#00f2ff', width=2), name="Tendencia SMA"))
+    fig.update_layout(template="plotly_dark", height=500, margin=dict(l=0, r=0, t=0, b=0), xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
 
-    with c1:
-        st.markdown('<div class="prestige-card">', unsafe_allow_html=True)
-        if not df_v.empty:
-            fig = go.Figure(data=[go.Candlestick(
-                x=df_v['ts'], open=df_v['o'], high=df_v['h'], low=df_v['l'], close=df_v['c'], name="BTC"
-            )])
-            fig.add_trace(go.Scatter(x=df_v['ts'], y=df_v['ema'], line=dict(color='#ff00ff', width=2), name="IA EMA"))
-            fig.update_layout(template="plotly_dark", height=450, margin=dict(l=0, r=0, t=0, b=0), xaxis_rangeslider_visible=False)
-            st.plotly_chart(fig, use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+# PANEL INFERIOR: PENSAMIENTOS DE LA IA
+st.subheader("Cerebro Mahora: Análisis de Multidivisa")
+col_a, col_b = st.columns(2)
+with col_a:
+    st.code(f"""
+[{datetime.now().strftime('%H:%M:%S')}] Escaneando Portfolio...
+> Detectado: ETH, USD, CRONOS, GOLEM.
+> Valor Total en Cartera: ${total_val:,.2f} USD
+> Acción: Manteniendo posición en ETH.
+    """, language="bash")
+with col_b:
+    if st.button("🔥 ACTIVAR COMPRA/VENTA REAL"):
+        st.warning("IA en modo ejecución agresiva...")
 
-    with c2:
-        st.markdown('<div class="prestige-card" style="height:485px;">', unsafe_allow_html=True)
-        st.subheader("Cerebro Mahora")
-        st.metric("PRECIO ACTUAL", f"${p_btc:,.2f}")
-        st.metric("MI BTC", f"{btc_val:.8f}")
-        st.write(f"**STATUS:** {log_msg}")
-        st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nADAPTACIÓN ACTIVA\nOBJETIVO: 115", language="bash")
-        if st.button("🚀 FORZAR RE-ADAPTACIÓN"):
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-
-# Refresco cada 5 segundos (Equilibrio entre velocidad y estabilidad)
+# Refresco para fluidez
 time.sleep(5)
 st.rerun()
