@@ -40,22 +40,16 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- MOTOR DE TRADING AGRESIVO ---
-def fetch_and_trade():
-    try:
-        # 1. Datos de Balance
-        bal = bitso.fetch_balance()
-        usd = bal['total'].get('USD', 2.81)
-        btc = bal['total'].get('BTC', 0.0)
-        
-        # 2. Datos de Mercado (Velas de 1 minuto)
-        ohlcv = bitso.fetch_ohlcv('BTC/USD', timeframe='1m', limit=30)
-        df = pd.DataFrame(ohlcv, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
-        df['ts'] = pd.to_datetime(df['ts'], unit='ms')
-        
-        # INDICADOR AGRESIVO: EMA 5 (Cerebro rápido)
-        df['ema_fast'] = df['c'].ewm(span=5).mean()
-        precio_actual = df['c'].iloc[-1]
+# --- LÓGICA DE COMPRA/VENTA REAL (ACTIVADA) ---
+if usd > 0.5 and precio_actual < df['ema_fast'].iloc[-1]:
+    # ELIMINA EL '#' DE LA SIGUIENTE LÍNEA PARA ACTIVAR:
+    bitso.create_market_buy_order('BTC/USD', usd) 
+    status = "🔥 EJECUTANDO COMPRA AGRESIVA"
+
+elif btc > 0.00001 and precio_actual > df['ema_fast'].iloc[-1]:
+    # ELIMINA EL '#' DE LA SIGUIENTE LÍNEA PARA ACTIVAR:
+    bitso.create_market_sell_order('BTC/USD', btc)
+    status = "⚡ EJECUTANDO VENTA (TAKE PROFIT)"
         
         # --- LÓGICA DE COMPRA/VENTA REAL ---
         # Si el precio baja de la EMA y tienes USD -> COMPRA
