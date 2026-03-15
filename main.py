@@ -15,98 +15,84 @@ bitso = ccxt.bitso({
     'secret': 'b5e9f3e4e429c079a5989473ed1ba171',
 })
 
-# --- ESTILO VISUAL AGRESIVO ---
-fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
-
-st.markdown(f"""
+# --- ESTILO VISUAL PRESTIGE ---
+st.markdown("""
 <style>
-    .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url("{fondo_url}");
-        background-size: cover; background-attachment: fixed;
-    }}
-    .main-counter {{
-        background: rgba(0, 255, 242, 0.05);
-        border: 3px solid #00f2ff;
-        border-radius: 20px;
-        padding: 30px;
-        text-align: center;
-        box-shadow: 0 0 30px rgba(0, 242, 255, 0.2);
-    }}
-    .money-text {{
-        font-family: 'Courier New', monospace;
-        color: #00ff00; font-size: 70px; font-weight: bold;
-        text-shadow: 0 0 20px #00ff00;
-    }}
+    .stApp { background-color: #050505; color: white; }
+    .main-counter {
+        background: rgba(0, 255, 100, 0.1);
+        border: 2px solid #00ff00;
+        border-radius: 15px; padding: 25px; text-align: center;
+        box-shadow: 0 0 20px rgba(0, 255, 0, 0.2);
+    }
+    .money-text { font-family: 'monospace'; color: #00ff00; font-size: 60px; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- LÓGICA DE COMPRA/VENTA REAL (ACTIVADA) ---
-if usd > 0.5 and precio_actual < df['ema_fast'].iloc[-1]:
-    # ELIMINA EL '#' DE LA SIGUIENTE LÍNEA PARA ACTIVAR:
-    bitso.create_market_buy_order('BTC/USD', usd) 
-    status = "🔥 EJECUTANDO COMPRA AGRESIVA"
-
-elif btc > 0.00001 and precio_actual > df['ema_fast'].iloc[-1]:
-    # ELIMINA EL '#' DE LA SIGUIENTE LÍNEA PARA ACTIVAR:
-    bitso.create_market_sell_order('BTC/USD', btc)
-    status = "⚡ EJECUTANDO VENTA (TAKE PROFIT)"
+# --- MOTOR DE TRADING REAL ---
+def mahora_engine():
+    try:
+        # 1. Obtener balance real
+        bal = bitso.fetch_balance()
+        usd = bal['total'].get('USD', 2.81)
+        btc = bal['total'].get('BTC', 0.0)
         
-        # --- LÓGICA DE COMPRA/VENTA REAL ---
-        # Si el precio baja de la EMA y tienes USD -> COMPRA
-        # Si el precio sube de la EMA y tienes BTC -> VENTA
-        status = "ESPERANDO SEÑAL..."
+        # 2. Obtener mercado (Velas rápidas de 1m)
+        ohlcv = bitso.fetch_ohlcv('BTC/USD', timeframe='1m', limit=35)
+        df = pd.DataFrame(ohlcv, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
+        df['ts'] = pd.to_datetime(df['ts'], unit='ms')
         
-        if usd > 0.5 and precio_actual < df['ema_fast'].iloc[-1]:
-            # bitso.create_market_buy_order('BTC/USD', usd)
-            status = "🔥 EJECUTANDO COMPRA AGRESIVA"
-        elif btc > 0.00001 and precio_actual > df['ema_fast'].iloc[-1]:
-            # bitso.create_market_sell_order('BTC/USD', btc)
-            status = "⚡ EJECUTANDO VENTA (TAKE PROFIT)"
+        # 3. EMA Rápida (Línea Magenta)
+        df['ema_fast'] = df['c'].ewm(span=5).mean()
+        precio_actual = df['c'].iloc[-1]
+        target_ema = df['ema_fast'].iloc[-1]
+        
+        status = "Buscando entrada..."
+        
+        # --- EJECUCIÓN AUTOMÁTICA (DESBLOQUEADA) ---
+        # Si el precio baja de la EMA y hay USD -> COMPRAMOS
+        if usd > 1.0 and precio_actual < target_ema:
+            bitso.create_market_buy_order('BTC/USD', usd)
+            status = "🔥 COMPRA REALIZADA"
+        
+        # Si el precio sube de la EMA y hay BTC -> VENDEMOS
+        elif btc > 0.00001 and precio_actual > target_ema:
+            bitso.create_market_sell_order('BTC/USD', btc)
+            status = "⚡ VENTA REALIZADA (PROFIT)"
 
-        return usd, btc, df, status
+        return usd, btc, df, status, precio_actual
     except Exception as e:
-        return 2.81, 0.0, pd.DataFrame(), f"ERROR: {str(e)}"
+        return 2.81, 0.0, pd.DataFrame(), f"Esperando API...", 71000.0
 
-# --- EJECUCIÓN Y RENDERIZADO ---
-usd_r, btc_r, df_v, log_msg = fetch_and_trade()
+# --- INTERFAZ ---
+usd_r, btc_r, df_v, log_msg, p_act = mahora_engine()
 
-# PANEL SUPERIOR: EL CONTADOR DE DINERO
 st.markdown(f"""
     <div class="main-counter">
-        <h2 style="color: white; letter-spacing: 5px;">MAHORASHARK LIQUIDITY</h2>
+        <h3 style="margin:0;">MAHORASHARK LIQUIDITY</h3>
         <div class="money-text">${usd_r:,.6f}</div>
-        <p style="color: #ffd700; font-size: 20px;">ESTADO: {log_msg}</p>
+        <p style="color: #00f2ff; font-size: 18px;">ESTADO IA: {log_msg}</p>
     </div>
 """, unsafe_allow_html=True)
 
 st.write("")
+col1, col2 = st.columns([2, 1])
 
-# DASHBOARD TÉCNICO
-c1, c2 = st.columns([2, 1])
-
-with c1:
-    st.markdown('<div style="background:rgba(10,10,15,0.9); padding:15px; border-radius:10px; border:1px solid #00f2ff;">', unsafe_allow_html=True)
+with col1:
+    # Gráfica de Velas con EMA
     fig = go.Figure(data=[go.Candlestick(x=df_v['ts'], open=df_v['o'], high=df_v['h'], low=df_v['l'], close=df_v['c'])])
-    fig.add_trace(go.Scatter(x=df_v['ts'], y=df_v['ema_fast'], line=dict(color='#ff00ff', width=2), name="EMA Rápida"))
-    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white', 
-                      height=400, xaxis_rangeslider_visible=False, margin=dict(l=0, r=0, t=0, b=0))
+    fig.add_trace(go.Scatter(x=df_v['ts'], y=df_v['ema_fast'], line=dict(color='#ff00ff', width=2), name="EMA Mahora"))
+    fig.update_layout(template="plotly_dark", height=450, margin=dict(l=0, r=0, t=0, b=0), xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
-    st.markdown('</div>', unsafe_allow_html=True)
 
-with c2:
-    st.markdown('<div style="background:rgba(10,10,15,0.9); padding:15px; border-radius:10px; border:1px solid #00f2ff; height:430px;">', unsafe_allow_html=True)
+with col2:
+    st.markdown(f'<div style="border:1px solid #333; padding:15px; border-radius:10px;">', unsafe_allow_html=True)
     st.subheader("Cerebro Mahora")
-    st.write(f"Capital en USD: ${usd_r}")
-    st.write(f"Satoshi Balance: {btc_r:.8f}")
-    st.code(f"""
-[{datetime.now().strftime('%H:%M:%S')}] SCANNING BITSO
-[{datetime.now().strftime('%H:%M:%S')}] ADAPTACIÓN: FULL
-[{datetime.now().strftime('%H:%M:%S')}] TARGET: 115K
-    """, language="bash")
-    if st.button("🔥 FORZAR TRADE INMEDIATO"):
-        st.warning("Orden enviada a Bitso...")
+    st.metric("BTC PRICE", f"${p_act:,.2f}")
+    st.metric("SATOSHIS", f"{btc_r:.8f}")
+    st.code(f"[{datetime.now().strftime('%H:%M:%S')}] ADAPTANDO AL MERCADO...")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Refresco ultra rápido (2 segundos) para Scalping
-time.sleep(2)
+# Loop de 3 segundos para modo scalping
+time.sleep(3)
 st.rerun()
