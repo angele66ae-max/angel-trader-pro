@@ -3,114 +3,98 @@ import pandas as pd
 import ccxt
 import time
 import plotly.graph_objects as go
-import base64
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE GALAXY ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK: FIX")
+# --- CONFIGURACIÓN DE TERMINAL ---
+st.set_page_config(layout="wide", page_title="MAHORA: REAL CORE")
 
-# --- CONEXIÓN API ---
+# --- CONEXIÓN API (BITSO) ---
 bitso = ccxt.bitso({
     'apiKey': 'FZHAAOqOhy',
     'secret': 'b5e9f3e4e429c079a5989473ed1ba171',
 })
 
-# --- OPTIMIZADOR DE VIDEO (CACHÉ ETERNO) ---
-@st.cache_data
-def get_video_base64():
-    video_path = "Ajustes_de_Video_y_Sugerencias.mp4"
+# --- ESTILO PROFESIONAL ESTÁTICO ---
+st.markdown("""
+<style>
+    .stApp { background-color: #050505; color: #e0e0e0; }
+    .status-card {
+        background: rgba(10, 20, 30, 0.9);
+        border: 2px solid #00f2ff;
+        border-radius: 10px; padding: 20px; text-align: center;
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
+    }
+    .price-text { color: #00ff00; font-size: 48px; font-weight: bold; text-shadow: 0 0 10px #00ff00; }
+</style>
+""", unsafe_allow_html=True)
+
+def execute_mahora_logic():
     try:
-        with open(video_path, "rb") as f:
-            data = f.read()
-            return base64.b64encode(data).decode()
-    except Exception as e:
-        return None
-
-video_b64 = get_video_base64()
-
-if video_b64:
-    st.markdown(f'''
-        <style>
-            #bg-video {{
-                position: fixed; right: 0; bottom: 0;
-                min-width: 100%; min-height: 100%;
-                z-index: -1; filter: brightness(0.3) contrast(1.1);
-                object-fit: cover;
-            }}
-            .stApp {{ background: transparent; }}
-            .mahora-card {{
-                background: rgba(0, 8, 15, 0.82);
-                border: 1px solid #00f2ff;
-                border-radius: 10px; padding: 15px;
-                box-shadow: 0 0 12px rgba(0, 242, 255, 0.3);
-            }}
-            .glow-money {{ color: #00ff00; font-size: 42px; font-weight: bold; text-shadow: 0 0 8px #00ff00; }}
-        </style>
-        <video autoplay loop muted playsinline id="bg-video">
-            <source src="data:video/mp4;base64,{video_b64}" type="video/mp4">
-        </video>
-    ''', unsafe_allow_html=True)
-else:
-    st.markdown('<style>.stApp { background: #050505; }</style>', unsafe_allow_html=True)
-
-# --- OMNI-SYNC: DATOS REALES ---
-def fetch_real_wealth():
-    try:
-        bal = bitso.fetch_balance()
-        ticker = bitso.fetch_ticker('BTC/USD')
+        # 1. Captura de Balance Real
+        balance = bitso.fetch_balance()
+        usd_balance = balance['total'].get('USD', 0.0)
+        btc_balance = balance['total'].get('BTC', 0.0)
+        eth_balance = balance['total'].get('ETH', 0.0)
         
-        # Balance real detectado en tu cuenta
-        u_usd = bal['total'].get('USD', 2.81)
-        u_eth = bal['total'].get('ETH', 0.0017524)
-        # Valor total en dólares ($6.42 según tu última captura exitosa)
-        current_total = u_usd + (u_eth * (37566 / 18.2))
-        
-        ohlcv = bitso.fetch_ohlcv('BTC/USD', timeframe='1m', limit=40)
+        # 2. Análisis de Mercado (BTC/USD)
+        ohlcv = bitso.fetch_ohlcv('BTC/USD', timeframe='1m', limit=50)
         df = pd.DataFrame(ohlcv, columns=['ts', 'o', 'h', 'l', 'c', 'v'])
         df['ts'] = pd.to_datetime(df['ts'], unit='ms')
         df['ema'] = df['c'].ewm(span=7).mean()
+        
+        precio_actual = df['c'].iloc[-1]
+        indicador_ema = df['ema'].iloc[-1]
+        
+        # 3. LÓGICA DE TRADING REAL (SIN DINERO DE PAPEL)
+        log_action = "IA ESCANEANDO MERCADO..."
+        
+        # COMPRA: Si el precio cae por debajo de la EMA y tenemos más de $1 USD
+        if usd_balance > 1.0 and precio_actual < indicador_ema:
+            # Usamos el 98% para cubrir comisiones de Bitso
+            bitso.create_market_buy_order('BTC/USD', usd_balance * 0.98)
+            log_action = "🔥 ORDEN DE COMPRA EJECUTADA"
+            
+        # VENTA: Si el precio sube por encima de la EMA y tenemos BTC
+        elif btc_balance > 0.000001 and precio_actual > indicador_ema:
+            bitso.create_market_sell_order('BTC/USD', btc_balance)
+            log_action = "⚡ ORDEN DE VENTA (PROFIT) ENVIADA"
 
-        return current_total, df, ticker['last'], bal['total']
-    except:
-        return 6.42, pd.DataFrame(), 71000.0, {}
+        return usd_balance, btc_balance, eth_balance, df, log_action, precio_actual
+    except Exception as e:
+        return 0, 0, 0, pd.DataFrame(), f"Error: {str(e)}", 0
 
-# --- EJECUCIÓN DEL DASHBOARD ---
-val_usd, df_m, btc_price, assets = fetch_real_wealth()
+# --- DESPLIEGUE ---
+usd_r, btc_r, eth_r, df_m, status, p_btc = execute_mahora_logic()
 
-# PANEL DE CONTROL
+# HEADER DE ESTADO
 c1, c2, c3 = st.columns(3)
 with c1:
-    st.markdown(f'<div class="mahora-card"><small>TOTAL USD</small><div class="glow-money">${val_usd:,.2f}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="status-card"><small>SALDO USD REAL</small><div class="price-text">${usd_r:,.2f}</div></div>', unsafe_allow_html=True)
 with c2:
-    p_l = val_usd - 6.45
-    c_p_l = "#ffd700" if p_l >= 0 else "#ff4b4b"
-    st.markdown(f'<div class="mahora-card"><small>GANANCIA LÍQUIDA</small><div style="font-size:32px; color:{c_p_l}; font-weight:bold;">${p_l:,.5f}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="status-card"><small>ESTADO DE IA</small><div style="font-size:24px; color:#ffd700; margin-top:10px;">{status}</div></div>', unsafe_allow_html=True)
 with c3:
-    st.markdown(f'<div class="mahora-card"><small>PROGRESO SUV</small><div style="font-size:32px; color:#00f2ff;">{(val_usd/10000)*100:.5f}%</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="status-card"><small>PRECIO BTC</small><div style="font-size:32px; color:#00f2ff; margin-top:10px;">${p_btc:,.2f}</div></div>', unsafe_allow_html=True)
 
 st.write("")
-col_l, col_r = st.columns([2.6, 1])
+col_grafica, col_info = st.columns([2.5, 1])
 
-with col_l:
+with col_grafica:
     if not df_m.empty:
-        fig = go.Figure(data=[go.Candlestick(x=df_m['ts'], open=df_m['o'], high=df_m['h'], low=df_m['l'], close=df_m['c'], name="BTC")])
-        # Línea IA Core Magenta
-        fig.add_trace(go.Scatter(x=df_m['ts'], y=df_m['ema'], line=dict(color='#ff00ff', width=2.5), name="IA Core"))
-        fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
-                          height=450, margin=dict(l=0, r=0, t=0, b=0), xaxis_rangeslider_visible=False)
+        fig = go.Figure(data=[go.Candlestick(x=df_m['ts'], open=df_m['o'], high=df_m['h'], low=df_m['l'], close=df_m['c'], name="Market")])
+        fig.add_trace(go.Scatter(x=df_m['ts'], y=df_m['ema'], line=dict(color='#ff00ff', width=2), name="IA Core"))
+        fig.update_layout(template="plotly_dark", height=450, margin=dict(l=0, r=0, t=0, b=0), xaxis_rangeslider_visible=False)
         st.plotly_chart(fig, use_container_width=True)
 
-with col_r:
-    st.markdown('<div class="mahora-card">', unsafe_allow_html=True)
+with col_info:
+    st.markdown('<div class="status-card" style="text-align:left;">', unsafe_allow_html=True)
     st.subheader("Bóveda Real")
-    st.write(f"**ETH:** `{assets.get('ETH', 0.0017524):.7f}`")
-    st.write(f"**USD:** `${assets.get('USD', 2.81):,.2f}`")
+    st.write(f"**Ether (ETH):** `{eth_r:.7f}`")
+    st.write(f"**Bitcoin (BTC):** `{btc_r:.8f}`")
     st.divider()
-    st.metric("BITCOIN", f"${btc_price:,.2f}")
-    st.code(f"SINC: {datetime.now().strftime('%H:%M:%S')}")
-    if st.button("🚀 ADAPTAR"): st.rerun()
+    st.code(f"SINC: {datetime.now().strftime('%H:%M:%S')}\nMODO: EJECUCIÓN REAL")
+    if st.button("🔄 ACTUALIZAR"): st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Refresco más lento para no saturar el video (10 segundos)
-time.sleep(10)
+# Refresco cada 5 segundos para máxima precisión
+time.sleep(5)
 st.rerun()
