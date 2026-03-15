@@ -1,4 +1,4 @@
-ccxt
+streamlit
 pandas
 numpy
-streamlit
+ccxt
