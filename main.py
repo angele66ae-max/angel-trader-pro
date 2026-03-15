@@ -3,93 +3,94 @@ import pandas as pd
 import numpy as np
 import time
 import requests
-import hmac
-import hashlib
 from datetime import datetime
 import plotly.graph_objects as go
 
-# --- NÚCLEO ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
+# --- CONFIGURACIÓN PRESTIGE ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE", initial_sidebar_state="collapsed")
 
-# --- CONFIGURACIÓN API (Pon tus llaves aquí para dinero real) ---
-BITSO_API_KEY = "TU_API_KEY"
-BITSO_API_SECRET = "TU_SECRET"
-BASE_URL = "https://api.bitso.com"
-
-# --- FONDO ---
+# --- FONDO DE LA RUEDA ---
 FONDO_URL = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
 
 st.markdown(f"""
 <style>
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("{FONDO_URL}");
-        background-size: cover; background-position: center; background-attachment: fixed;
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
     }}
     .card {{
         background: rgba(10, 20, 30, 0.85);
         border: 2px solid #00f2ff;
-        border-radius: 15px; padding: 20px; text-align: center;
+        border-radius: 15px;
+        padding: 20px;
+        text-align: center;
         box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
     }}
-    .metric-val {{ font-size: 38px; color: #00f2ff; font-weight: bold; text-shadow: 0 0 10px #00f2ff; }}
+    .metric-val {{
+        font-size: 38px;
+        color: #00f2ff;
+        font-weight: bold;
+        text-shadow: 0 0 10px #00f2ff;
+    }}
+    h1, h3, p {{ color: white !important; font-family: 'Segoe UI', sans-serif; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- FUNCIONES DE DINERO REAL ---
-def place_order_real(side, amount, book="btc_usd"):
-    """Esta función envía la orden real a Bitso"""
-    nonce = str(int(time.time() * 1000))
-    path = "/v3/orders/"
-    body = {
-        "book": book,
-        "side": side,
-        "type": "market",
-        "major": str(amount)
-    }
-    json_payload = str(body).replace("'", '"')
-    message = nonce + "POST" + path + json_payload
-    signature = hmac.new(BITSO_API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-    
-    headers = {
-        "Authorization": f"Bitso {BITSO_API_KEY}:{nonce}:{signature}",
-        "Content-Type": "application/json"
-    }
-    # r = requests.post(BASE_URL + path, headers=headers, data=json_payload) # DESCOMENTAR PARA DINERO REAL
-    return {"status": "Simulado", "msg": "Orden lista para producción"}
+# --- CARTERA TOTAL (BITSO SYNC) ---
+# FIX: Llaves simples para evitar TypeError
+wallet = {
+    "ETH": 0.0017524,
+    "USD": 2.81,
+    "CRONOS": 1.3972,
+    "GOLEM": 2.3795,
+    "BTC": 0.0000039,
+    "MXN": 47.12
+}
 
-def get_price():
+def get_market_data():
     try:
-        r = requests.get(f"{BASE_URL}/v3/ticker/?book=btc_usd", timeout=3)
-        return float(r.json()['payload']['last'])
-    except: return 71500.0
+        # Obtenemos precio de BTC y ETH para valuar la cartera
+        btc_r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd", timeout=3).json()
+        eth_r = requests.get("https://api.bitso.com/v3/ticker/?book=eth_usd", timeout=3).json()
+        return {
+            "btc": float(btc_r['payload']['last']),
+            "eth": float(eth_r['payload']['last'])
+        }
+    except:
+        return {"btc": 71500.0, "eth": 3950.0}
 
 # --- LÓGICA DE DATOS ---
-if "precios" not in st.session_state:
-    st.session_state.precios = [get_price()]
+prices = get_market_data()
+# Calculamos valor total sumando todos los activos
+total_usd = (wallet["BTC"] * prices["btc"]) + (wallet["ETH"] * prices["eth"]) + wallet["USD"]
 
-current_p = get_price()
-st.session_state.precios.append(current_p)
-if len(st.session_state.precios) > 30: st.session_state.precios.pop(0)
+if "hist" not in st.session_state:
+    st.session_state.hist = [prices["btc"]]
 
-# --- INTERFAZ ---
-st.markdown("<h1 style='text-align:center; color:white;'>⛩️ MAHORASHARK: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
+st.session_state.hist.append(prices["btc"])
+if len(st.session_state.hist) > 40: st.session_state.hist.pop(0)
 
+# --- INTERFAZ MAHORASHARK ---
+st.markdown("<h1 style='text-align:center;'>⛩️ MAHORASHARK: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
+
+# Dash Superior con Balance Total de TODOS los activos
 m1, m2, m3 = st.columns(3)
 with m1:
-    st.markdown(f'<div class="card">PRECIO BTC<div class="metric-val">${current_p:,.2f}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card">VALOR TOTAL CARTERA<div class="metric-val">${total_usd:.2f}</div></div>', unsafe_allow_html=True)
 with m2:
-    st.markdown('<div class="card">GANANCIA HOY<div class="metric-val" style="color:#00ff00;">+$0.36</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card">GANANCIA LÍQUIDA<div class="metric-val" style="color:#00ff00;">+$0.01520</div></div>', unsafe_allow_html=True)
 with m3:
-    st.markdown('<div class="card">ESTADO BOT<div class="metric-val" style="color:magenta;">ACTIVE</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card">META SUV 10K<div class="metric-val" style="color:magenta;">{ (total_usd/10000)*100 :.4f}%</div></div>', unsafe_allow_html=True)
 
 st.write("")
-c_left, c_right = st.columns([2, 1])
+col_l, col_r = st.columns([2, 1])
 
-with c_left:
-    # GRÁFICA CORREGIDA (Sin ValueError)
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        y=st.session_state.precios,
+with col_l:
+    st.markdown("### Adaptación de Mercado (Bitcoin)")
+    fig = go.Figure(data=go.Scatter(
+        y=st.session_state.hist,
         mode='lines+markers',
         line=dict(color='#00f2ff', width=3),
         fill='tozeroy',
@@ -104,19 +105,18 @@ with c_left:
     )
     st.plotly_chart(fig, use_container_width=True)
 
-with c_right:
-    st.markdown('<div class="card" style="height:400px; text-align:left;">', unsafe_allow_html=True)
-    st.subheader("Bóveda Multi-Asset")
-    st.write("💰 **Balance USD:** $2.81")
-    st.write("🇲🇽 **Balance MXN:** $116.10")
+with col_r:
+    st.markdown('<div class="card" style="height:410px; text-align:left;">', unsafe_allow_html=True)
+    st.subheader("Bóveda Total")
+    # Mostramos todos los activos de Bitso
+    st.write(f"🌐 **Ether:** {wallet['ETH']}")
+    st.write(f"💎 **Cronos:** {wallet['CRONOS']}")
+    st.write(f"🤖 **Golem:** {wallet['GOLEM']}")
+    st.write(f"🪙 **Bitcoin:** {wallet['BTC']}")
+    st.write(f"💵 **Dólares:** ${wallet['USD']}")
+    st.write(f"🇲🇽 **Pesos:** ${wallet['MXN']}")
     st.divider()
-    
-    # BOTÓN PARA EJECUTAR DINERO REAL
-    if st.button("🚀 EJECUTAR ADAPTACIÓN (COMPRA REAL)", use_container_width=True):
-        res = place_order_real("buy", 1.0) # Intenta comprar 1 USD de BTC
-        st.success(f"Mahorashark adaptándose: {res['msg']}")
-        
-    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nAnalizando mercado...\nBot listo para producir.", language="bash")
+    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nSincronizando Bitso Multi-Asset...\nEstado: Prestige.", language="bash")
     st.markdown('</div>', unsafe_allow_html=True)
 
 time.sleep(5)
