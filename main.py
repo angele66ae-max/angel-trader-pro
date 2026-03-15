@@ -3,22 +3,19 @@ import pandas as pd
 import numpy as np
 import time
 import requests
-import hmac
-import hashlib
 from datetime import datetime
 import plotly.graph_objects as go
 
-# ---------- CONFIGURACIÓN DE PÁGINA ----------
+# --- CONFIGURACIÓN DE NÚCLEO ---
 st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
 
-# URL Directa de la imagen (Asegúrate de que el enlace sea público)
+# --- FONDO GALÁCTICO MAHORA ---
 FONDO_URL = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
 
-# ---------- ESTILO CSS (FIX DE FONDO Y TRANSPARENCIA) ----------
 st.markdown(f"""
 <style>
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url("{FONDO_URL}");
+        background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url("{FONDO_URL}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -35,28 +32,49 @@ st.markdown(f"""
         font-size: 32px;
         color: #00f2ff;
         font-weight: bold;
-        text-shadow: 0 0 8px #00f2ff;
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- FUNCIONES DE BITSO (CORREGIDAS) ----------
-def get_bitso_ticker():
+# --- DATOS REALES (BITSO WALLET) ---
+# Valores extraídos de tu captura de Bitso
+wallet = {
+    "ETH": 0.0017524,
+    "USD": 2.81,
+    "CRONOS": 1.3972,
+    "GOLEM": 2.3795,
+    "BTC": 0.0000039
+}
+
+def get_btc_price():
     try:
-        # Usamos requests directo para evitar fallos de ccxt
         r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd", timeout=5)
-        data = r.json()
-        return float(data['payload']['last'])
+        return float(r.json()['payload']['last'])
     except:
-        return 71500.0 # Valor fallback si falla la red
+        return 71450.0
 
-# ---------- LÓGICA DE DATOS ----------
-if "precios" not in st.session_state:
-    st.session_state.precios = []
+# --- LÓGICA DE INTERFAZ ---
+if "precios_hist" not in st.session_state:
+    st.session_state.precios_hist = [get_btc_price()]
 
-current_price = get_bitso_ticker()
-st.session_state.precios.append(current_price)
-if len(st.session_state.precios) > 40: st.session_state.precios.pop(0)
+price = get_btc_price()
+st.session_state.precios_hist.append(price)
+if len(st.session_state.precios_hist) > 50: st.session_state.precios_hist.pop(0)
 
-# ---------- INTERFAZ DASHBOARD ----------
-st.markdown("<h
+st.markdown("<h1 style='text-align:center; color:#00f2ff;'>⛩️ MAHORASHARK: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
+
+# Dashboard Superior
+m1, m2, m3 = st.columns(3)
+with m1:
+    st.markdown(f'<div class="card">BALANCE TOTAL (USD)<div class="metric-val">${wallet["USD"] + 3.61:.2f}</div></div>', unsafe_allow_html=True)
+with m2:
+    st.markdown('<div class="card">GANANCIA REAL<div class="metric-val" style="color:#ffd700;">+$0.36000</div></div>', unsafe_allow_html=True)
+with m3:
+    st.markdown('<div class="card">META SUV 10K<div class="metric-val" style="color:magenta;">0.0681%</div></div>', unsafe_allow_html=True)
+
+st.write("")
+c1, c2 = st.columns([2, 1])
+
+with c1:
+    st.markdown('<h3 style="color:white;">Gráfica de Adaptación (BTC/USD)</h3>', unsafe_allow_html=True)
+    fig
