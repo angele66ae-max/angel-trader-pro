@@ -1,4 +1,4 @@
-streamlit
-requests
+ccxt
 pandas
-plotly
+numpy
+streamlit
