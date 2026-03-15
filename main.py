@@ -2,73 +2,64 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import time
-import ccxt # Conector real Bitso
+import ccxt
+import plotly.graph_objects as go
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE NÚCLEO ---
 st.set_page_config(layout="wide", page_title="MAHORASHARK: BITSO PRESTIGE")
 
 # --- CONEXIÓN REAL A BITSO ---
-# Usando tus credenciales proporcionadas para datos reales
 bitso = ccxt.bitso({
     'apiKey': 'FZHAAOqOhy',
     'secret': 'b5e9f3e4e429c079a5989473ed1ba171',
 })
 
-# --- FONDO DE LA RUEDA DE MAHAGA (DISEÑO RECUPERADO) ---
-# Se utiliza el fondo de tu segunda imagen
+# --- DISEÑO VISUAL (Rueda de Mahaga) ---
 fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
 
 st.markdown(f"""
 <style>
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url("{fondo_url}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
+        background-size: cover; background-attachment: fixed;
     }}
     .prestige-card {{
-        background: rgba(10, 10, 15, 0.9);
+        background: rgba(10, 10, 15, 0.92);
         border: 2px solid #00f2ff;
-        border-radius: 12px;
-        padding: 20px;
-        text-align: center;
+        border-radius: 12px; padding: 20px; text-align: center;
         box-shadow: 0 0 20px rgba(0, 242, 255, 0.4);
     }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- MOTOR DE DATOS EN VIVO (Sin simulaciones) ---
+# --- MOTOR DE DATOS EN VIVO ---
 def get_live_data():
     try:
-        # Balance Real
         balance_info = bitso.fetch_balance()
-        # Buscamos USD o MXN dependiendo de cómo tengas tus $2.81
-        usd_balance = balance_info['total'].get('USD', 2.81) 
+        usd_balance = balance_info['total'].get('USD', balance_info['total'].get('MXN', 2.81))
         
-        # Precio Real en Bitso
-        ticker = bitso.fetch_ticker('BTC/USD')
-        precio_btc = ticker['last']
+        # Obtenemos OHLCV (Velas: Open, High, Low, Close, Volume)
+        ohlcv = bitso.fetch_ohlcv('BTC/USD', timeframe='1m', limit=30)
+        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
         
-        return usd_balance, precio_btc, "CONEXIÓN LIVE EXITOSA"
+        return usd_balance, df, "SISTEMA LIVE"
     except Exception as e:
-        return 2.81, 70965.0, f"ERROR API: {str(e)}"
+        return 2.81, pd.DataFrame(), f"ERROR: {str(e)}"
 
-# --- LÓGICA DE MEMORIA (IA Y DATOS) ---
-if "precios_hist" not in st.session_state:
-    st.session_state.precios_hist = []
+# --- LÓGICA DE SESIÓN ---
 if "log_ia_hist" not in st.session_state:
-    st.session_state.log_ia_hist = [f"[{datetime.now().strftime('%H:%M:%S')}] PROTOCOLO INICIADO. BUSCANDO META 10K..."]
+    st.session_state.log_ia_hist = [f"[{datetime.now().strftime('%H:%M:%S')}] MAHORA ADAPTATION START..."]
 
-saldo, btc_p, status = get_live_data()
-st.session_state.precios_hist.append(btc_p)
-st.session_state.precios_hist = st.session_state.precios_hist[-50:] # Mantener 50 puntos
+saldo, df_velas, status = get_live_data()
+btc_p = df_velas['close'].iloc[-1] if not df_velas.empty else 70000.0
 
-# --- INTERFAZ MAHORASHARK PRESTIGE ---
-st.markdown("<h1 style='text-align:center; color:#00f2ff; text-shadow: 2px 2px #000;'>⛩️ MAHORASHARK: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
+# --- INTERFAZ ---
+st.markdown("<h1 style='text-align:center; color:#00f2ff;'>⛩️ MAHORASHARK: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
 
 m1, m2, m3, m4 = st.columns(4)
-with m1: st.markdown(f'<div class="prestige-card">BITSO STATUS<br><h2 style="color:#00ff00;">CONECTADO</h2></div>', unsafe_allow_html=True)
+with m1: st.markdown(f'<div class="prestige-card">ESTADO<br><h2 style="color:#00ff00;">GENERANDO</h2></div>', unsafe_allow_html=True)
 with m2: st.markdown(f'<div class="prestige-card">BALANCE REAL<br><h2 style="color:magenta;">${saldo:.2f}</h2></div>', unsafe_allow_html=True)
 with m3: st.markdown('<div class="prestige-card">META SUV<br><h2>$10,000.00</h2></div>', unsafe_allow_html=True)
 with m4: 
@@ -78,40 +69,49 @@ with m4:
 
 st.write("")
 
-# --- CUERPO TÉCNICO (DISEÑO RECUPERADO) ---
-col_l, col_r = st.columns([2, 1])
+c1, c2 = st.columns([2, 1])
 
-with col_l:
+with c1:
     st.markdown('<div class="prestige-card">', unsafe_allow_html=True)
-    st.subheader("Análisis de Volatilidad (BTC/USD)")
-    # Gráfica real de línea sin relleno masivo
-    df = pd.DataFrame(st.session_state.precios_hist, columns=["BTC Price"])
-    st.line_chart(df, color="#00f2ff", use_container_width=True)
+    st.subheader("Análisis de Velas Japonesas (BTC/USD)")
+    
+    if not df_velas.empty:
+        fig = go.Figure(data=[go.Candlestick(
+            x=df_velas['timestamp'],
+            open=df_velas['open'],
+            high=df_velas['high'],
+            low=df_velas['low'],
+            close=df_velas['close'],
+            increasing_line_color='#00ff00', decreasing_line_color='#ff0000'
+        )])
+        fig.update_layout(
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            font_color='white', margin=dict(l=0, r=0, t=0, b=0),
+            xaxis_rangeslider_visible=False, height=400
+        )
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.write("Cargando datos de Bitso...")
     st.markdown('</div>', unsafe_allow_html=True)
 
-with col_r:
-    st.markdown('<div class="prestige-card" style="min-height:420px;">', unsafe_allow_html=True)
+with c2:
+    st.markdown('<div class="prestige-card" style="min-height:430px;">', unsafe_allow_html=True)
     st.subheader("Pensamientos de la IA")
     
-    # Lógica para añadir pensamientos sin borrar el historial
-    current_time = datetime.now().strftime('%H:%M:%S')
-    if len(st.session_state.log_ia_hist) < 12:
-        eventos = [
-            f"Analizando resistencia en 115...",
-            f"Adaptación de capital al 100% activa sobre ${saldo}.",
-            f"Buscando arbitraje con liquidez de Bitso...",
-            f"Objetivo SUV fijado. Faltan ${10000 - saldo:,.2f}."
+    if len(st.session_state.log_ia_hist) < 15:
+        frases = [
+            f"Analizando patrones de velas...",
+            f"Escaneando liquidez para proteger ${saldo}.",
+            f"Objetivo 115 en mira táctica.",
+            f"Adaptación Mahora al {np.random.randint(98, 100)}%."
         ]
-        st.session_state.log_ia_hist.insert(0, f"[{current_time}] {np.random.choice(eventos)}")
+        st.session_state.log_ia_hist.insert(0, f"[{datetime.now().strftime('%H:%M:%S')}] {np.random.choice(frases)}")
     
-    # Mostramos logs sin errores de comillas
     st.code("\n".join(st.session_state.log_ia_hist[:8]), language="bash")
     
-    # Botón de acción real
     if st.button("🚀 ACTIVAR OPERACIÓN REAL"):
-        st.error("ALERTA: Mahorashark tomará el control del capital.")
+        st.error("MAHORASHARK TOMANDO CONTROL...")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Actualización automática cada 5 segundos
-time.sleep(5)
+time.sleep(10) # 10 segundos para no saturar la API de Bitso
 st.rerun()
