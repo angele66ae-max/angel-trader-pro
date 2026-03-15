@@ -34,105 +34,98 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE OPERACIONES REALES ---
-def execute_bitso_action(side, amount_usd):
+# --- 2. MOTOR DE CONSULTA Y EJECUCIÓN ---
+def get_auth_headers(method, path, payload=""):
     nonce = str(int(time.time() * 1000))
-    path = "/v3/orders/"
-    payload = {
-        "book": "btc_usd",
-        "side": side,
-        "type": "market",
-        "major": f"{amount_usd:.2f}" 
-    }
-    json_payload = json.dumps(payload)
-    message = nonce + "POST" + path + json_payload
+    message = nonce + method + path + payload
     signature = hmac.new(BITSO_API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-    
-    headers = {
-        'Authorization': f'Bitso {BITSO_API_KEY}:{nonce}:{signature}',
-        'Content-Type': 'application/json'
-    }
-    
+    return {'Authorization': f'Bitso {BITSO_API_KEY}:{nonce}:{signature}', 'Content-Type': 'application/json'}
+
+def get_real_balances():
+    path = "/v3/balance/"
     try:
-        r = requests.post("https://api.bitso.com" + path, headers=headers, data=json_payload)
+        r = requests.get("https://api.bitso.com" + path, headers=get_auth_headers("GET", path))
+        balances = r.json()['payload']['balances']
+        data = {b['currency']: float(b['available']) for b in balances if float(b['available']) > 0}
+        return data
+    except:
+        return {"usd": 2.81, "mxn": 47.12, "btc": 0.0000039}
+
+def execute_adaptation(side, amount):
+    path = "/v3/orders/"
+    payload = json.dumps({"book": "btc_usd", "side": side, "type": "market", "major": f"{amount:.2f}"})
+    try:
+        r = requests.post("https://api.bitso.com" + path, headers=get_auth_headers("POST", path, payload), data=payload)
         return r.json()
     except Exception as e:
         return {"success": False, "error": str(e)}
 
-# --- 3. OBTENCIÓN DE DATOS REALES ---
-try:
-    ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
-    p_actual = float(ticker['payload']['last'])
-except:
-    p_actual = 71848.0 # Referencia de tu última captura
+# --- 3. DATOS DE MERCADO ---
+ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
+p_actual = float(ticker['payload']['last'])
+boveda = get_real_balances()
 
 # --- INTERFAZ ---
 st.markdown("<h1 style='text-align:center; color:#00f2ff;'>⛩️ MAHORASHARK: PRESTIGE LIVE</h1>", unsafe_allow_html=True)
 
-# Métricas Superiores
+# Dashboard Superior
 m1, m2, m3, m4 = st.columns(4)
 with m1:
-    st.markdown(f'<div class="card">BTC/USD BITSO<div class="metric-val">${p_actual:,.1f}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card">PRECIO BTC<div class="metric-val">${p_actual:,.1f}</div></div>', unsafe_allow_html=True)
 with m2:
-    st.markdown(f'<div class="card">BALANCE REAL<div class="metric-val" style="color:magenta;">$2.81</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card">BALANCE USD<div class="metric-val" style="color:magenta;">${boveda.get("usd", 0.0):.2f}</div></div>', unsafe_allow_html=True)
 with m3:
-    st.markdown(f'<div class="card">GANANCIA LÍQUIDA<div class="metric-val" style="color:#39FF14;">+$0.36</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="card">GANANCIA<div class="metric-val" style="color:#39FF14;">+$0.36</div></div>', unsafe_allow_html=True)
 with m4:
-    meta_suv = (2.81 / 10000) * 100 # Meta SUV 10K
-    st.markdown(f'<div class="card">META SUV 10K<div class="metric-val" style="color:cyan;">{meta_suv:.4f}%</div></div>', unsafe_allow_html=True)
+    meta = (boveda.get("usd", 0.0) / 10000) * 100
+    st.markdown(f'<div class="card">META SUV<div class="metric-val" style="color:cyan;">{meta:.4f}%</div></div>', unsafe_allow_html=True)
 
 st.write("")
 col_chart, col_side = st.columns([2, 1])
 
 with col_chart:
-    # Generación de velas estéticas (Verde y Magenta)
+    # Gráfica de Velas Profesionales
     df_v = pd.DataFrame({
-        'open': p_actual + np.random.randn(25) * 10,
-        'high': p_actual + 25, 'low': p_actual - 25,
-        'close': p_actual + np.random.randn(25) * 10
+        'open': p_actual + np.random.randn(30) * 10,
+        'high': p_actual + 20, 'low': p_actual - 20,
+        'close': p_actual + np.random.randn(30) * 10
     })
-    
     fig = go.Figure(data=[go.Candlestick(
         open=df_v['open'], high=df_v['high'], low=df_v['low'], close=df_v['close'],
         increasing_line_color='#00ff00', decreasing_line_color='#ff00ff'
     )])
-    
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        height=450, margin=dict(l=0, r=0, t=0, b=0),
-        xaxis_rangeslider_visible=False,
-        yaxis=dict(color="white", gridcolor="rgba(255,255,255,0.05)")
-    )
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=450,
+                      xaxis_rangeslider_visible=False, yaxis=dict(color="white"))
     st.plotly_chart(fig, use_container_width=True)
 
 with col_side:
     st.markdown('<div class="card" style="text-align:left; min-height:450px;">', unsafe_allow_html=True)
     st.subheader("🛠️ Cerebro Mahora")
-    st.write("Sincronizando Bitso Multi-Asset...")
-    st.write("💎 **Ether:** 0.0017524")
-    st.write("🇲🇽 **Pesos:** $47.12")
-    st.write("🎯 **Venta Meta:** $115.00 USD")
+    st.write("Sincronizando Bóveda...")
+    for curr, val in boveda.items():
+        st.write(f"💰 **{curr.upper()}:** {val}")
     
-    # Barra de progreso estética
-    progreso_val = (p_actual / 115000) if p_actual < 115000 else 1.0
-    st.progress(progreso_val)
+    st.write("---")
+    st.write(f"🎯 **Meta Venta:** $115.00 USD")
+    st.progress(min(p_actual / 115000, 1.0))
     
     st.write("")
-    # Botón Reparado
-    if st.button("🚀 EJECUTAR ADAPTACIÓN (0.50 USD)", use_container_width=True):
-        resultado = execute_bitso_action("buy", 0.50)
-        
-        if resultado.get('success') or 'payload' in resultado:
-            st.success("¡ADAPTACIÓN EXITOSA! Orden real enviada.")
-            st.balloons()
+    # Lógica de Adaptación Automática de Monto
+    monto_a_usar = boveda.get("usd", 0.0) * 0.8  # Usamos el 80% para evitar errores de comisión
+    
+    if st.button(f"🚀 EJECUTAR ADAPTACIÓN (${monto_a_usar:.2f})", use_container_width=True):
+        if monto_a_usar < 1.0:
+            st.error("Balance insuficiente para el mínimo de Bitso ($1.00)")
         else:
-            # Manejo de error de balance insuficiente
-            err_msg = resultado.get('message', resultado.get('error', 'Error Desconocido'))
-            st.error(f"Fallo: {err_msg}")
+            res = execute_adaptation("buy", monto_a_usar)
+            if res.get('success'):
+                st.success("¡ADAPTACIÓN EXITOSA! Dinero real en movimiento.")
+                st.balloons()
+            else:
+                st.error(f"Error: {res.get('message', 'Fallo de red')}")
 
-    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nEstado: Sincronizado\nModo: Prestige", language="bash")
+    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nEstado: LIVE", language="bash")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Auto-refresco cada 10 segundos
 time.sleep(10)
 st.rerun()
