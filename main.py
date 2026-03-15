@@ -10,9 +10,9 @@ from datetime import datetime
 # ---------- CONFIG ----------
 st.set_page_config(layout="wide", page_title="MAHORASHARK AI")
 
-BITSO_API_KEY = "TU_API_KEY"
-BITSO_API_SECRET = "TU_SECRET"
-
+# Usa Secretos de Streamlit o variables seguras
+BITSO_API_KEY = st.secrets.get("API_KEY", "TU_KEY")
+BITSO_API_SECRET = st.secrets.get("API_SECRET", "TU_SECRET")
 BASE_URL = "https://api.bitso.com"
 
 # ---------- FONDO ----------
@@ -20,213 +20,77 @@ fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126
 
 st.markdown(f"""
 <style>
-
-.stApp{{
-background: linear-gradient(rgba(0,0,0,0.85),rgba(0,0,0,0.85)),url("{fondo_url}");
-background-size:cover;
-background-attachment:fixed;
+.stApp {{
+    background: linear-gradient(rgba(0,0,0,0.6), rgba(0,0,0,0.6)), url("{fondo_url}");
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
 }}
-
-.card{{
-background:rgba(15,20,25,0.9);
-border:1px solid #00f2ff;
-border-radius:10px;
-padding:20px;
-box-shadow:0 0 15px #00f2ff33;
+.card {{
+    background: rgba(15,20,25,0.85);
+    border: 1px solid #00f2ff;
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+    box-shadow: 0 0 15px rgba(0,242,255,0.2);
 }}
-
-.metric{{
-font-size:28px;
-color:#00f2ff;
-font-weight:bold;
+.metric {{
+    font-size: 32px;
+    color: #00f2ff;
+    font-weight: bold;
+    text-shadow: 0 0 10px #00f2ff;
 }}
-
 </style>
 """, unsafe_allow_html=True)
 
-# ---------- SESION ----------
-if "log" not in st.session_state:
-    st.session_state.log = []
+# ---------- SESIÓN ----------
+if "log" not in st.session_state: st.session_state.log = []
+if "price_history" not in st.session_state: st.session_state.price_history = []
+if "ai_on" not in st.session_state: st.session_state.ai_on = False
 
-if "price_history" not in st.session_state:
-    st.session_state.price_history = []
-
-if "ai_on" not in st.session_state:
-    st.session_state.ai_on = False
-
-# ---------- FUNCIONES BITSO ----------
-
+# ---------- FUNCIONES ----------
 def get_price():
+    try:
+        r = requests.get(f"{BASE_URL}/v3/ticker/?book=btc_mxn", timeout=5)
+        return float(r.json()["payload"]["last"])
+    except:
+        return st.session_state.price_history[-1] if st.session_state.price_history else 0.0
 
-    url = f"{BASE_URL}/v3/ticker/?book=btc_mxn"
-
-    r = requests.get(url)
-
-    data = r.json()
-
-    return float(data["payload"]["last"])
-
-
-def get_balance():
-
-    nonce = str(int(time.time()*1000))
-
-    path="/v3/balance/"
-
-    message = nonce+"GET"+path
-
-    signature = hmac.new(
-        BITSO_API_SECRET.encode(),
-        message.encode(),
-        hashlib.sha256
-    ).hexdigest()
-
-    headers = {
-        "Authorization": f"Bitso {BITSO_API_KEY}:{nonce}:{signature}"
-    }
-
-    r=requests.get(BASE_URL+path,headers=headers)
-
-    return r.json()
-
-
-def place_order(side, amount):
-
-    nonce=str(int(time.time()*1000))
-
-    path="/v3/orders"
-
-    body = {
-        "book":"btc_mxn",
-        "side":side,
-        "type":"market",
-        "major":amount
-    }
-
-    body_json = str(body).replace("'","\"")
-
-    message = nonce+"POST"+path+body_json
-
-    signature = hmac.new(
-        BITSO_API_SECRET.encode(),
-        message.encode(),
-        hashlib.sha256
-    ).hexdigest()
-
-    headers={
-        "Authorization":f"Bitso {BITSO_API_KEY}:{nonce}:{signature}",
-        "Content-Type":"application/json"
-    }
-
-    r=requests.post(BASE_URL+path,headers=headers,data=body_json)
-
-    return r.json()
-
-# ---------- RSI ----------
-def rsi(data,period=14):
-
-    series=pd.Series(data)
-
-    delta=series.diff()
-
-    gain=(delta.where(delta>0,0)).rolling(period).mean()
-
-    loss=(-delta.where(delta<0,0)).rolling(period).mean()
-
-    rs=gain/loss
-
-    return 100-(100/(1+rs))
-
-# ---------- TITULO ----------
-st.title("⛩️ MAHORASHARK AI TRADER")
-
-# ---------- PRECIO ----------
-price=get_price()
-
+# ---------- LÓGICA ----------
+price = get_price()
 st.session_state.price_history.append(price)
+if len(st.session_state.price_history) > 60: st.session_state.price_history.pop(0)
 
-price_series=pd.Series(st.session_state.price_history)
+# ---------- UI ----------
+st.markdown("<h1 style='text-align:center; color:#00f2ff;'>⛩️ MAHORASHARK AI</h1>", unsafe_allow_html=True)
 
-# ---------- RSI ----------
-if len(price_series)>15:
-    rsi_value=rsi(price_series).iloc[-1]
-else:
-    rsi_value=50
-
-# ---------- PANEL ----------
-col1,col2,col3,col4=st.columns(4)
-
-with col1:
-    st.markdown('<div class="card">BTC PRICE</div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="metric">${price:,.2f} MXN</div>',unsafe_allow_html=True)
-
-with col2:
-    st.markdown('<div class="card">RSI</div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="metric">{rsi_value:.2f}</div>',unsafe_allow_html=True)
-
-with col3:
-
-    if st.session_state.ai_on:
-        status="GENERANDO"
-    else:
-        status="PAUSADO"
-
-    st.markdown('<div class="card">ESTADO IA</div>',unsafe_allow_html=True)
-    st.markdown(f'<div class="metric">{status}</div>',unsafe_allow_html=True)
-
-with col4:
-
-    st.markdown('<div class="card">META</div>',unsafe_allow_html=True)
-    st.progress(116/10000)
-
-# ---------- BOTONES ----------
-
-c1,c2=st.columns(2)
-
+c1, c2, c3, c4 = st.columns(4)
 with c1:
-
-    if st.button("🚀 ACTIVAR IA"):
-        st.session_state.ai_on=True
-        st.session_state.log.append("IA ACTIVADA")
-
+    st.markdown(f'<div class="card">BTC MXN<div class="metric">${price:,.0f}</div></div>', unsafe_allow_html=True)
 with c2:
+    st.markdown(f'<div class="card">ESTADO IA<div class="metric">{"ACTIVA" if st.session_state.ai_on else "OFF"}</div></div>', unsafe_allow_html=True)
+with c3:
+    st.markdown(f'<div class="card">META SUV<div class="metric">0.01%</div></div>', unsafe_allow_html=True)
+with c4:
+    st.markdown('<div class="card">BALANCE<div class="metric">$2.81</div></div>', unsafe_allow_html=True)
 
-    if st.button("⛔ DETENER IA"):
-        st.session_state.ai_on=False
-        st.session_state.log.append("IA DETENIDA")
+st.write("")
+col_left, col_right = st.columns([2, 1])
 
-# ---------- IA TRADING ----------
+with col_left:
+    st.subheader("Gráfica de Adaptación")
+    st.line_chart(pd.DataFrame(st.session_state.price_history), height=300)
 
-if st.session_state.ai_on:
+with col_right:
+    st.subheader("Comandos")
+    if st.button("🚀 ACTIVAR", use_container_width=True):
+        st.session_state.ai_on = True
+        st.session_state.log.append(f"[{datetime.now().strftime('%H:%M')}] IA Online")
+    if st.button("⛔ DETENER", use_container_width=True):
+        st.session_state.ai_on = False
+        st.session_state.log.append(f"[{datetime.now().strftime('%H:%M')}] IA Offline")
+    
+    st.code("\n".join(st.session_state.log[-5:]))
 
-    if rsi_value<30:
-
-        st.session_state.log.append("IA DETECTA SOBREVENTA -> COMPRA")
-
-        # place_order("buy",0.00001)
-
-    elif rsi_value>70:
-
-        st.session_state.log.append("IA DETECTA SOBRECOMPRA -> VENDE")
-
-        # place_order("sell",0.00001)
-
-    else:
-
-        st.session_state.log.append("IA ANALIZANDO MERCADO")
-
-# ---------- GRAFICA ----------
-st.subheader("Mercado BTC")
-
-chart_df=pd.DataFrame({"BTC":price_series})
-
-st.line_chart(chart_df)
-
-# ---------- LOGS ----------
-st.subheader("Cerebro IA")
-
-st.code("\n".join(st.session_state.log[-10:]))
-
-# ---------- REFRESH ----------
 time.sleep(5)
 st.rerun()
