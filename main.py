@@ -68,4 +68,51 @@ if len(st.session_state.precios_hist) > 50: st.session_state.precios_hist.pop(0)
 st.markdown("<h1 style='text-align:center;'>⛩️ MAHORASHARK: PRESTIGE CENTER</h1>", unsafe_allow_html=True)
 
 # Dashboard de Métricas
-m1, m2, m3 = st.columns(3
+m1, m2, m3 = st.columns(3)
+with m1:
+    st.markdown(f'<div class="card">BALANCE REAL (USD)<div class="metric-val">${wallet["USD"]:.2f}</div></div>', unsafe_allow_html=True)
+with m2:
+    st.markdown('<div class="card">GANANCIA LÍQUIDA<div class="metric-val" style="color:#00ff00;">+$0.3600</div></div>', unsafe_allow_html=True)
+with m3:
+    st.markdown('<div class="card">META SUV 10K<div class="metric-val" style="color:magenta;">0.0681%</div></div>', unsafe_allow_html=True)
+
+st.write("")
+col_grafica, col_status = st.columns([2, 1])
+
+with col_grafica:
+    st.markdown("### Gráfica de Adaptación (BTC/USD)")
+    # Creamos fig aquí para evitar el NameError
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        y=st.session_state.precios_hist,
+        mode='lines+markers',
+        line=dict(color='#00f2ff', width=3),
+        fill='tozeroy',
+        fillcolor='rgba(0, 242, 255, 0.1)'
+    ))
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis_visible=False,
+        yaxis=dict(gridcolor='rgba(255,255,255,0.05)', font=dict(color="white"))
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+with col_status:
+    st.markdown('<div class="card" style="height:380px; text-align:left;">', unsafe_allow_html=True)
+    st.subheader("Bóveda Mahora")
+    st.write(f"🌐 **Ether:** {wallet['ETH']}")
+    st.write(f"💵 **Dólares:** ${wallet['USD']}")
+    st.write(f"💎 **Cronos:** {wallet['CRONOS']}")
+    st.write(f"🤖 **Golem:** {wallet['GOLEM']}")
+    st.divider()
+    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nAnalizando liquidez...\nMeta SUV activa.\nAdaptando bot.", language="bash")
+    if st.button("🚀 FORZAR RE-ADAPTACIÓN", use_container_width=True):
+        st.toast("Adaptando a la volatilidad...")
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Auto-refresh
+time.sleep(4)
+st.rerun()
+{{{{{{
