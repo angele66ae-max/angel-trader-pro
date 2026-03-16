@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import requests
 import plotly.graph_objects as go
 from datetime import datetime
@@ -8,56 +7,73 @@ import time
 import hmac
 import hashlib
 
-# --- 1. CONFIGURACIÓN VISUAL PRESTIGE ---
+# --- 1. CONFIGURACIÓN VISUAL ---
 st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
-
-# Tus Llaves de Poder
-API_KEY = "FZHAAOqOhy"
-API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
 
 st.markdown("""
 <style>
-    .stApp { background-color: #00050a; color: #e0e0e0; }
-    [data-testid="stMetricValue"] { color: #00f2ff !important; font-size: 32px !important; }
+    .stApp { background-color: #000505; color: #00f2ff; }
     .metric-card {
-        background: rgba(0, 20, 40, 0.6);
+        background: rgba(0, 30, 40, 0.5);
         border: 2px solid #00f2ff;
         border-radius: 15px; padding: 20px;
-        box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+        text-align: center; box-shadow: 0 0 15px #00f2ff33;
     }
-    .status-active { color: #39FF14; font-weight: bold; text-shadow: 0 0 10px #39FF14; }
+    .status-active { color: #39FF14; text-shadow: 0 0 10px #39FF14; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE CONEXIÓN REAL (BITSO) ---
-def get_bitso_balance():
+# --- 2. FUNCIÓN DE CONEXIÓN REAL ---
+def consultar_bitso():
+    key = st.secrets["BITSO_KEY"]
+    secret = st.secrets["BITSO_SECRET"]
     nonce = str(int(time.time() * 1000))
     message = nonce + "GET" + "/v3/balance/"
-    signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
+    signature = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
+    headers = {'Authorization': f'Bitso {key}:{nonce}:{signature}'}
     try:
         r = requests.get("https://api.bitso.com/v3/balance/", headers=headers).json()
         return r['payload']['balances']
-    except: return []
+    except: return None
 
-# --- 3. DATOS DE MERCADO Y PROGRESO ---
+# --- 3. LÓGICA DE DATOS ---
 try:
-    # Precio BTC
-    r_tick = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
-    p_actual = float(r_tick['payload']['last'])
-    
-    # Obtener Saldo Real
-    balances = get_bitso_balance()
-    btc_real = next((float(b['total']) for b in balances if b['currency'] == 'btc'), 0.0)
-    usd_real = next((float(b['total']) for b in balances if b['currency'] == 'usd'), 0.0)
+    balances = consultar_bitso()
     mxn_real = next((float(b['total']) for b in balances if b['currency'] == 'mxn'), 0.0)
+    btc_real = next((float(b['total']) for b in balances if b['currency'] == 'btc'), 0.0)
     
+    # Precio actual
+    tick = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
+    p_actual = float(tick['payload']['last'])
     valor_btc_usd = btc_real * p_actual
-    progreso = (valor_btc_usd / 115.0) * 100
+    progreso = (valor_btc_usd / 115.0) * 100 # Meta de $115 USD
 except:
-    p_actual, btc_real, usd_real, mxn_real, valor_btc_usd, progreso = 70000.0, 0.00003542, 0.22, 0.0, 2.5, 2.2
+    mxn_real, btc_real, p_actual, valor_btc_usd, progreso = 0.0, 0.00003542, 70000.0, 2.61, 2.27
 
-# --- 4. PANEL PRINCIPAL ---
-st.markdown("<h1 style='color:#00f2ff; text-align:center;'>⛩️ MAHORASHARK: OMNI-SYNCHRONIZED</h1>", unsafe_allow_html=True)
+# --- 4. INTERFAZ ---
+st.markdown("<h1 style='text-align:center;'>⛩️ MAHORASHARK: OMNI-SYNCHRONIZED</h1>", unsafe_allow_html=True)
 
-c1, c2, c3, c4 = st
+c1, c2, c3 = st.columns(3)
+with c1: st.markdown(f'<div class="metric-card">BÓVEDA BTC<br><span style="font-size:24px;">{btc_real:.8f}</span><br>(${valor_btc_usd:.2f} USD)</div>', unsafe_allow_html=True)
+with c2: st.markdown(f'<div class="metric-card">SALDO DISPONIBLE<br><span style="font-size:24px;">${mxn_real:.2f} MXN</span></div>', unsafe_allow_html=True)
+with c3: st.markdown(f'<div class="metric-card">PROGRESO META<br><span style="font-size:24px;">{progreso:.4f}%</span></div>', unsafe_allow_html=True)
+
+st.write("---")
+
+# --- 5. CEREBRO AUTÓNOMO ---
+col_ia, col_log = st.columns([1, 2])
+
+with col_ia:
+    st.subheader("🤖 IA Mahora Pro")
+    if mxn_real < 10.0:
+        st.error("⚠️ MODO LECTURA: Sin fondos suficientes.")
+        st.write("Esperando saldo mínimo ($10 MXN).")
+    else:
+        st.markdown('<p class="status-active">🚀 ADAPTACIÓN AUTOMÁTICA ACTIVA</p>', unsafe_allow_html=True)
+
+with col_log:
+    st.code(f"[{datetime.now().strftime('%H:%M:%S')}] Escaneando... Modo: IA_SYNC | Status: PRESTIGE", language="bash")
+
+# Auto-refresh
+time.sleep(15)
+st.rerun()
