@@ -2,83 +2,62 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
+import plotly.graph_objects as go
 from datetime import datetime
 import time
+import hmac
+import hashlib
 
-# Intentamos cargar acciones sin que se rompa el sistema
+# --- 1. CONFIGURACIÓN VISUAL PRESTIGE ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
+
+# Tus Llaves de Poder
+API_KEY = "FZHAAOqOhy"
+API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
+
+st.markdown("""
+<style>
+    .stApp { background-color: #00050a; color: #e0e0e0; }
+    [data-testid="stMetricValue"] { color: #00f2ff !important; font-size: 32px !important; }
+    .metric-card {
+        background: rgba(0, 20, 40, 0.6);
+        border: 2px solid #00f2ff;
+        border-radius: 15px; padding: 20px;
+        box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+    }
+    .status-active { color: #39FF14; font-weight: bold; text-shadow: 0 0 10px #39FF14; }
+</style>
+""", unsafe_allow_html=True)
+
+# --- 2. MOTOR DE CONEXIÓN REAL (BITSO) ---
+def get_bitso_balance():
+    nonce = str(int(time.time() * 1000))
+    message = nonce + "GET" + "/v3/balance/"
+    signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
+    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
+    try:
+        r = requests.get("https://api.bitso.com/v3/balance/", headers=headers).json()
+        return r['payload']['balances']
+    except: return []
+
+# --- 3. DATOS DE MERCADO Y PROGRESO ---
 try:
-    import yfinance as yf
-    ACCIONES_LISTAS = True
-except ImportError:
-    ACCIONES_LISTAS = False
+    # Precio BTC
+    r_tick = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
+    p_actual = float(r_tick['payload']['last'])
+    
+    # Obtener Saldo Real
+    balances = get_bitso_balance()
+    btc_real = next((float(b['total']) for b in balances if b['currency'] == 'btc'), 0.0)
+    usd_real = next((float(b['total']) for b in balances if b['currency'] == 'usd'), 0.0)
+    mxn_real = next((float(b['total']) for b in balances if b['currency'] == 'mxn'), 0.0)
+    
+    valor_btc_usd = btc_real * p_actual
+    progreso = (valor_btc_usd / 115.0) * 100
+except:
+    p_actual, btc_real, usd_real, mxn_real, valor_btc_usd, progreso = 70000.0, 0.00003542, 0.22, 0.0, 2.5, 2.2
 
-# --- 1. CONFIGURACIÓN ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK AUTO-PILOT")
+# --- 4. PANEL PRINCIPAL ---
+st.markdown("<h1 style='color:#00f2ff; text-align:center;'>⛩️ MAHORASHARK: OMNI-SYNCHRONIZED</h1>", unsafe_allow_html=True)
 
-# Tus activos reales
-MI_BTC = 0.00003542
-META_USD = 115.00
-
-st.markdown("<h1 style='color:#00f2ff; text-align:center;'>⛩️ MAHORASHARK: AUTO-PILOT ACTIVO</h1>", unsafe_allow_html=True)
-
-# Contenedores dinámicos para que la página no parpadee
-status_ia = st.empty()
-monitor_stats = st.empty()
-log_terminal = st.empty()
-
-# --- 2. CEREBRO DE ADAPTACIÓN AUTOMÁTICA ---
-def ejecutar_ia_autonoma():
-    while True:
-        try:
-            # Sincronización de precio real
-            r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
-            p_actual = float(r['payload']['last'])
-            valor_btc = MI_BTC * p_actual
-            progreso = (valor_btc / META_USD) * 100
-            
-            # Verificación de saldo disponible
-            # Nota: Cambia estos valores a tus llaves API para que sean dinámicos
-            saldo_mxn = 0.00 
-            saldo_usd = 0.22 
-
-            # Mostrar métricas en tiempo real
-            with monitor_stats.container():
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Bóveda BTC (USD)", f"${valor_btc:.2f}")
-                m2.metric("Saldo Disponible", f"${saldo_mxn} MXN")
-                m3.metric("Meta ($115)", f"{progreso:.4f}%")
-
-            # --- LÓGICA DE DECISIÓN AUTÓNOMA ---
-            # La IA decide sola: Si hay saldo > $1 USD o $10 MXN, intenta comprar
-            if saldo_mxn >= 10.0 or saldo_usd >= 1.0:
-                status_ia.success("🚀 IA: ¡OPORTUNIDAD DETECTADA! Ejecutando compra automática...")
-                # Aquí iría la orden real a la API
-                time.sleep(2)
-            else:
-                # El bot se mantiene escaneando si no hay fondos suficientes
-                status_ia.warning(f"🤖 IA: Escaneando... Esperando saldo mínimo ($10 MXN / $1 USD)")
-
-            # Radar de Acciones (Si yfinance está instalado)
-            if ACCIONES_LISTAS:
-                # La IA monitorea Tesla automáticamente como activo secundario
-                tsla = yf.Ticker("TSLA")
-                p_tsla = tsla.history(period="1d")['Close'].iloc[-1]
-                st.write(f"📈 Monitor Stock: TSLA a ${p_tsla:.2f} USD")
-
-            with log_terminal:
-                st.code(f"[{datetime.now().strftime('%H:%M:%S')}] IA Escaneando... Status: PRESTIGE | Modo: AUTO", language="bash")
-
-        except Exception as e:
-            # Corregido: El paréntesis y las comillas ahora cierran correctamente
-            st.error(f"Error en el sistema: {str(e)}")
-            
-        time.sleep(20) # Ciclo de escaneo automático
-        st.rerun()
-
-# --- 3. INTERRUPTOR DE ENCENDIDO ---
-activar = st.toggle("⚡ INICIAR CEREBRO AUTÓNOMO", value=True)
-
-if activar:
-    ejecutar_ia_autonoma()
-else:
-    st.info("Sistema en pausa. Active el interruptor para iniciar la compra automática.")
+c1, c2, c3, c4 = st
