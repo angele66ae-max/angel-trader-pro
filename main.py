@@ -1,16 +1,12 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import requests
-import time
-import hmac
-import hashlib
-import json
 import plotly.graph_objects as go
 from datetime import datetime
+import time
 
-# --- 1. ESTÉTICA PRESTIGE ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
+# --- 1. CONFIGURACIÓN PRESTIGE ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK MONITOR")
 
 FONDO_URL = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
 st.markdown(f"""
@@ -22,85 +18,69 @@ st.markdown(f"""
     .metric-card {{
         background: rgba(0, 10, 20, 0.95);
         border: 2px solid #00f2ff;
-        border-radius: 12px; padding: 20px; text-align: center;
-        box-shadow: 0 0 20px rgba(0, 242, 255, 0.5);
+        border-radius: 12px; padding: 15px; text-align: center;
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
     }}
-    .val-neon {{ font-size: 28px; color: #39FF14; font-weight: bold; text-shadow: 0 0 10px #39FF14; }}
+    .val-neon {{ font-size: 24px; color: #39FF14; font-weight: bold; text-shadow: 0 0 10px #39FF14; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR BITSO ---
-API_KEY = "FZHAAOqOhy"
-API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
+# --- 2. TUS ACTIVOS REALES ---
+MI_BTC = 0.00003542
+MI_ETH = 0.0017524
+META_USD = 115.00
 
-def bitso_api(method, path, payload=None):
-    nonce = str(int(time.time() * 1000))
-    json_pay = json.dumps(payload, separators=(',', ':')) if payload else ""
-    msg = nonce + method + path + json_pay
-    sig = hmac.new(API_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
-    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{sig}', 'Content-Type': 'application/json'}
-    try:
-        r = requests.request(method, f"https://api.bitso.com{path}", headers=headers, data=json_pay)
-        return r.json()
-    except: return {"success": False, "error": {"message": "Error de Red"}}
-
-# --- 3. DATOS REALES ---
+# --- 3. DATOS DE MERCADO ---
 try:
-    ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
-    p_btc = float(ticker['payload']['last'])
-    bal_res = bitso_api("GET", "/v3/balance/")
-    balances = bal_res['payload']['balances']
-    usd_bal = next((float(b['available']) for b in balances if b['currency'] == 'usd'), 0.0)
+    # Precio BTC en USD y MXN
+    t_usd = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
+    t_mxn = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
+    p_btc_usd = float(t_usd['payload']['last'])
+    p_btc_mxn = float(t_mxn['payload']['last'])
+    
+    # Valor actual de tu cartera
+    valor_actual_usd = MI_BTC * p_btc_usd
+    valor_actual_mxn = MI_BTC * p_btc_mxn
 except:
-    p_btc, usd_bal = 75000.0, 2.81
+    p_btc_usd, valor_actual_usd, valor_actual_mxn = 75000.0, 2.65, 45.96
 
 # --- 4. DASHBOARD ---
-st.markdown("<h1 style='color:#00f2ff; text-align:center; text-shadow:0 0 15px #00f2ff;'>⛩️ MAHORASHARK: 2 USD MODE</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='color:#00f2ff; text-align:center;'>⛩️ MAHORASHARK: MONITOR DE BÓVEDA</h1>", unsafe_allow_html=True)
 
-m1, m2, m3 = st.columns(3)
-with m1: st.markdown(f'<div class="metric-card">BTC/USD<div class="val-neon">${p_btc:,.2f}</div></div>', unsafe_allow_html=True)
-with m2: st.markdown(f'<div class="metric-card">BÓVEDA USD<div class="val-neon" style="color:cyan;">${usd_bal:.2f}</div></div>', unsafe_allow_html=True)
-with m3: st.markdown(f'<div class="metric-card">ORDEN IA<div class="val-neon" style="color:magenta;">$2.00</div></div>', unsafe_allow_html=True)
+c1, c2, c3, c4 = st.columns(4)
+with c1: st.markdown(f'<div class="metric-card">VALOR BTC (MXN)<div class="val-neon">${valor_actual_mxn:.2f}</div></div>', unsafe_allow_html=True)
+with c2: st.markdown(f'<div class="metric-card">VALOR BTC (USD)<div class="val-neon" style="color:cyan;">${valor_actual_usd:.2f}</div></div>', unsafe_allow_html=True)
+with c3: st.markdown(f'<div class="metric-card">META FINAL<div class="val-neon" style="color:magenta;">${META_USD:.2f} USD</div></div>', unsafe_allow_html=True)
+with c4: 
+    progreso = (valor_actual_usd / META_USD) * 100
+    st.markdown(f'<div class="metric-card">PROGRESO META<div class="val-neon">{progreso:.4f}%</div></div>', unsafe_allow_html=True)
 
-col_viz, col_ctrl = st.columns([2.5, 1])
+# --- 5. VISUALIZACIÓN ---
+col_graf, col_info = st.columns([2, 1])
 
-with col_viz:
-    fig = go.Figure(data=[go.Candlestick(
-        x=pd.date_range(end=datetime.now(), periods=20, freq='min'),
-        open=[p_btc + np.random.uniform(-50, 50) for _ in range(20)],
-        high=[p_btc + 100 for _ in range(20)],
-        low=[p_btc - 100 for _ in range(20)],
-        close=[p_btc + np.random.uniform(-50, 50) for _ in range(20)],
-        increasing_line_color='#39FF14', decreasing_line_color='magenta'
-    )])
-    fig.update_layout(template="plotly_dark", height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=0, b=0, l=0, r=0), xaxis_rangeslider_visible=False)
+with col_graf:
+    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+    st.write("📊 **Tendencia BTC/USD**")
+    # Gráfica simple de simulación de tendencia
+    fig = go.Figure(go.Scatter(y=[p_btc_usd*0.99, p_btc_usd*1.01, p_btc_usd], line=dict(color='#00f2ff', width=3)))
+    fig.update_layout(template="plotly_dark", height=300, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=0,b=0,l=0,r=0))
     st.plotly_chart(fig, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-with col_ctrl:
-    st.markdown('<div class="metric-card" style="text-align:left; min-height:450px;">', unsafe_allow_html=True)
-    st.subheader("🧠 Cerebro Mahora")
-    
-    # Lógica de 2 Dólares: Usamos $2.00 si hay balance, si no, el 98% del total disponible
-    monto_orden = 2.00 if usd_bal >= 2.02 else (usd_bal * 0.98)
-    
-    st.write(f"Estado: **SYNCED**")
-    st.info(f"Target: **${monto_orden:.2f} USD**")
-    
-    if st.button("🚀 ADAPTAR 2 USD", use_container_width=True):
-        if usd_bal < 1.0:
-            st.error("Balance insuficiente ($1 USD min)")
-        else:
-            payload = {"book": "btc_usd", "side": "buy", "type": "market", "minor": f"{monto_orden:.2f}"}
-            res = bitso_api("POST", "/v3/orders/", payload)
-            if res.get('success'):
-                st.success("¡ADAPTACIÓN EXITOSA!")
-                st.balloons()
-            else:
-                st.error(f"Bitso: {res.get('error', {}).get('message', 'Error')}")
-
+with col_info:
+    st.markdown('<div class="metric-card" style="text-align:left; height:360px;">', unsafe_allow_html=True)
+    st.subheader("🧠 Análisis de Activos")
+    st.write(f"🔹 **Bitcoin:** {MI_BTC} BTC")
+    st.write(f"🔹 **Ether:** {MI_ETH} ETH")
     st.write("---")
-    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nStatus: PRESTIGE", language="bash")
-    st.markdown('</div>', unsafe_allow_html=True) # AQUÍ SE CORRIGIÓ EL ERROR
+    st.write("⚠️ **Estado:** Sin efectivo (MXN/USD)")
+    st.write("El bot está en modo **LECTURA**. Para comprar más, necesitas depositar Pesos en Bitso.")
+    
+    if st.button("🔄 ACTUALIZAR VALORES", use_container_width=True):
+        st.rerun()
+    
+    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nBóveda: Sincronizada", language="bash")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-time.sleep(15)
+time.sleep(30)
 st.rerun()
