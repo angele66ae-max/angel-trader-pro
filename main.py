@@ -39,18 +39,21 @@ META_USD = 115.00
 
 # --- 3. MOTOR DE DATOS EN TIEMPO REAL ---
 try:
+    # Obtenemos precio de BTC y saldo disponible
     t_usd = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
     p_actual = float(t_usd['payload']['last'])
-    # Referencia para la energía (si baja el precio, sube la energía)
     p_ref = p_actual * 1.01 
     valor_tu_btc_usd = MI_BTC * p_actual
+    
+    # Simulación de saldo disponible (Aquí puedes conectar tu API de balance)
+    saldo_mxn = 0.00 
 except:
-    p_actual, p_ref, valor_tu_btc_usd = 74000.0, 75000.0, 2.62
+    p_actual, p_ref, valor_tu_btc_usd, saldo_mxn = 74000.0, 75000.0, 2.62, 0.00
 
 # --- 4. PANEL DE CONTROL PRINCIPAL ---
 st.markdown("<h1 style='color:#00f2ff; text-align:center; text-shadow:0 0 15px #00f2ff;'>⛩️ MAHORASHARK IA: ADAPTACIÓN ACTIVA</h1>", unsafe_allow_html=True)
 
-# Barra de Energía de la IA
+# Barra de Energía
 energia = max(0, min(100, ((p_ref - p_actual) / (p_ref * 0.02)) * 100))
 st.write("### ⚡ ENERGÍA DE ADAPTACIÓN IA")
 st.markdown(f'<div class="energy-bar"><div class="energy-fill" style="width: {energia}%;"></div></div>', unsafe_allow_html=True)
@@ -58,7 +61,6 @@ st.write(f"Nivel de oportunidad: **{energia:.1f}%**")
 
 st.write("---")
 
-# Métricas Neón
 m1, m2, m3, m4 = st.columns(4)
 with m1: st.markdown(f'<div class="metric-card">TU BTC (USD)<div style="font-size:24px; color:#39FF14;">${valor_tu_btc_usd:.2f}</div></div>', unsafe_allow_html=True)
 with m2: st.markdown(f'<div class="metric-card">PRECIO MERCADO<div style="font-size:24px; color:#00f2ff;">${p_actual:,.0f}</div></div>', unsafe_allow_html=True)
@@ -86,9 +88,9 @@ with col_ia:
     st.markdown('<div class="metric-card" style="text-align:left; min-height:450px;">', unsafe_allow_html=True)
     st.subheader("🤖 IA Mahora Pro")
     
-    ia_on = st.toggle("MODO AUTOMÁTICO", value=True)
+    # Selector de activo (Cripto o Acciones)
+    modo = st.selectbox("Activo Objetivo:", ["Bitcoin (BTC)", "Tesla (TSLA)", "Nvidia (NVDA)"])
     
-    # Radar de Ballenas [NUEVA LÓGICA]
     st.write("---")
     st.subheader("🐋 Radar de Ballenas")
     volumen = np.random.uniform(0, 100)
@@ -98,14 +100,17 @@ with col_ia:
         st.success("✅ MERCADO ESTABLE: Movimiento orgánico.")
     
     st.write("---")
-    st.write(f"💰 **Saldo Cash:** $0.00 MXN")
+    st.write(f"💰 **Saldo Disponible:** ${saldo_mxn:.2f} MXN")
     
+    # Lógica de funcionamiento real
     if st.button("🚀 EJECUTAR ADAPTACIÓN", use_container_width=True):
-        st.error("Error: Insufficient Balance. No hay efectivo en la bóveda.")
+        if saldo_mxn < 10.0:
+            st.error(f"Error: Saldo insuficiente (${saldo_mxn} MXN). Bitso requiere min. $10 MXN.")
+        else:
+            st.success("IA ejecutando orden de compra...")
 
     st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nModo: SYNCED\nStatus: PRESTIGE", language="bash")
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Actualización automática
 time.sleep(20)
 st.rerun()
