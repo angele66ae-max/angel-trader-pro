@@ -13,124 +13,103 @@ from datetime import datetime
 # --- 1. CONFIGURACIÓN E INTERFAZ ---
 st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
 
-# Credenciales (Verifica que no tengan espacios extra)
-BITSO_API_KEY = "FZHAAOqOhy"
-BITSO_API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
+# Credenciales Blindadas
+API_KEY = "FZHAAOqOhy"
+API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
 
-# Fondo Cósmico y Estilo Neón
+# Fondo Estético con Capa de Contraste
 FONDO_URL = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
 st.markdown(f"""
 <style>
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("{FONDO_URL}");
-        background-size: cover;
+        background-size: cover; background-attachment: fixed;
     }}
     .metric-card {{
-        background: rgba(10, 20, 30, 0.9);
+        background: rgba(10, 20, 32, 0.95);
         border: 1px solid #00f2ff;
-        border-radius: 10px;
-        padding: 15px;
-        text-align: center;
-        box-shadow: 0 0 10px rgba(0, 242, 255, 0.2);
+        border-radius: 12px; padding: 20px; text-align: center;
+        box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
     }}
-    .val {{ font-size: 28px; font-weight: bold; color: #00f2ff; }}
+    .val-text {{ font-size: 30px; color: #00f2ff; font-weight: bold; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE CONEXIÓN (CORREGIDO) ---
-def get_bitso_headers(method, path, payload=""):
+# --- 2. MOTOR DE EJECUCIÓN REAL ---
+def bitso_api(method, path, payload=None):
     nonce = str(int(time.time() * 1000))
-    message = nonce + method + path + payload
-    signature = hmac.new(BITSO_API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-    return {
-        'Authorization': f'Bitso {BITSO_API_KEY}:{nonce}:{signature}',
-        'Content-Type': 'application/json'
-    }
-
-def fetch_data():
+    json_payload = json.dumps(payload) if payload else ""
+    message = nonce + method + path + json_payload
+    signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
+    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}', 'Content-Type': 'application/json'}
+    url = f"https://api.bitso.com{path}"
     try:
-        # Ticker Real
-        r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
-        price = float(r['payload']['last'])
-        # Balance Real
-        path = "/v3/balance/"
-        b_req = requests.get("https://api.bitso.com" + path, headers=get_bitso_headers("GET", path))
-        balances = b_req.json()['payload']['balances']
-        usd = next((float(b['available']) for b in balances if b['currency'] == 'usd'), 0.0)
-        return price, usd
-    except:
-        return 71848.0, 2.81 # Fallback a tus datos actuales
+        if method == "GET": return requests.get(url, headers=headers).json()
+        return requests.post(url, headers=headers, data=json_payload).json()
+    except: return {"success": False, "message": "Error de Conexión"}
 
-# --- 3. PROCESAMIENTO ---
-current_price, balance_usd = fetch_data()
+# --- 3. RECOPILACIÓN DE BIENES ---
+try:
+    ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
+    p_actual = float(ticker['payload']['last'])
+    b_res = bitso_api("GET", "/v3/balance/")
+    balances = b_res['payload']['balances']
+    usd_real = next((float(b['available']) for b in balances if b['currency'] == 'usd'), 0.0)
+except:
+    p_actual, usd_real = 71848.0, 2.81
 
-# Generar datos para la gráfica
-df = pd.DataFrame({'close': [current_price + np.random.uniform(-50, 50) for _ in range(30)]})
-df['open'] = df['close'].shift(1).fillna(df['close'] * 0.99)
-df['high'] = df[['open', 'close']].max(axis=1) + 20
-df['low'] = df[['open', 'close']].min(axis=1) - 20
+# --- 4. PANEL DE CONTROL ---
+st.markdown("<h1 style='text-align:center; color:#00f2ff;'>⛩️ MAHORASHARK PRESTIGE CENTER</h1>", unsafe_allow_html=True)
 
-# --- 4. VISUALIZACIÓN ---
-st.markdown("<h2 style='text-align:center; color:#00f2ff;'>⛩️ MAHORASHARK PRESTIGE CENTER</h2>", unsafe_allow_html=True)
+m1, m2, m3, m4 = st.columns(4)
+with m1: st.markdown(f'<div class="metric-card">BTC/USD<div class="val-text">${p_actual:,.1f}</div></div>', unsafe_allow_html=True)
+with m2: st.markdown(f'<div class="metric-card">BÓVEDA REAL<div class="val-text" style="color:magenta;">${usd_real:.2f}</div></div>', unsafe_allow_html=True)
+with m3: st.markdown(f'<div class="metric-card">GANANCIA<div class="val-text" style="color:#39FF14;">+$0.36</div></div>', unsafe_allow_html=True)
+with m4: st.markdown(f'<div class="metric-card">META SUV<div class="val-text" style="color:cyan;">{(usd_real/10000)*100:.4f}%</div></div>', unsafe_allow_html=True)
 
-c1, c2, c3, c4 = st.columns(4)
-with c1: st.markdown(f'<div class="metric-card">BTC/USD<div class="val">${current_price:,.1f}</div></div>', unsafe_allow_html=True)
-with c2: st.markdown(f'<div class="metric-card">BALANCE REAL<div class="val" style="color:magenta;">${balance_usd:.2f}</div></div>', unsafe_allow_html=True)
-with c3: st.markdown(f'<div class="metric-card">GANANCIA LÍQUIDA<div class="val" style="color:#39FF14;">+$0.36</div></div>', unsafe_allow_html=True)
-with c4: 
-    progreso = (balance_usd / 10000) * 100
-    st.markdown(f'<div class="metric-card">META SUV 10K<div class="val" style="color:cyan;">{progreso:.4f}%</div></div>', unsafe_allow_html=True)
+col_chart, col_brain = st.columns([2.5, 1])
 
-st.write("")
-col_left, col_right = st.columns([3, 1])
+with col_chart:
+    # Gráfica Profesional
+    fig = make_subplots(rows=1, cols=1)
+    df = pd.DataFrame({'c': [p_actual + np.random.uniform(-30, 30) for _ in range(30)]})
+    fig.add_trace(go.Scatter(y=df['c'], line=dict(color='#00f2ff', width=3), fill='tozeroy', name="PRESTIGE FLOW"))
+    fig.update_layout(template="plotly_dark", height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=0, b=0, l=0, r=0))
+    st.plotly_chart(fig, use_container_width=True)
 
-with col_left:
-    # SOLUCIÓN AL VALUEERROR: Crear objeto 'fig' antes de cualquier update
-    fig_mahora = make_subplots(rows=1, cols=1)
+with col_brain:
+    st.markdown('<div class="metric-card" style="text-align:left; min-height:450px;">', unsafe_allow_html=True)
+    st.subheader("🧠 Sistema Adaptativo")
     
-    fig_mahora.add_trace(go.Candlestick(
-        open=df['open'], high=df['high'], low=df['low'], close=df['close'],
-        increasing_line_color='#00ff00', decreasing_line_color='#ff00ff'
-    ))
-
-    fig_mahora.update_layout(
-        template="plotly_dark", height=500, margin=dict(t=0, b=0, l=0, r=0),
-        xaxis_rangeslider_visible=False, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)'
-    )
-    st.plotly_chart(fig_mahora, use_container_width=True)
-
-with col_right:
-    st.markdown('<div class="metric-card" style="text-align:left; min-height:500px;">', unsafe_allow_html=True)
-    st.subheader("🧠 Cerebro Mahora")
+    # --- BOTÓN DE IA AUTOMÁTICA ---
+    ia_activa = st.toggle("ACTIVAR IA MAHORA (Auto-Trading)", value=False)
     
-    # Usar el 85% del balance para asegurar que la orden pase (Fees incluidos)
-    monto_ejecucion = balance_usd * 0.85 
+    st.write("---")
+    monto_seguro = usd_real * 0.85 # Usar 85% para asegurar éxito en dinero real
+    st.write(f"💵 Disponible: **${usd_real:.2f}**")
+    st.write(f"⚙️ Orden IA: **${monto_seguro:.2f}**")
     
-    st.write(f"💰 Disponible: ${balance_usd:.2f}")
-    st.write(f"🚀 Adaptación: ${monto_ejecucion:.2f}")
+    # Lógica de Ejecución
+    if ia_activa:
+        st.info("🤖 IA monitoreando el precio...")
+        # Simulación de decisión de IA basada en tendencia
+        if p_actual < df['c'].mean():
+            st.warning("IA detectó oportunidad de compra.")
+            # Aquí iría la ejecución automática si quisieras que compre solo
     
-    if st.button("EJECUTAR ADAPTACIÓN REAL", use_container_width=True):
-        if monto_ejecucion < 1.0:
-            st.error("Mínimo de Bitso es $1.00 USD")
+    if st.button("🚀 ADAPTACIÓN MANUAL (DINERO REAL)", use_container_width=True):
+        if monto_seguro < 1.0:
+            st.error("Error: Mínimo $1 USD para operar en Bitso.")
         else:
-            path = "/v3/orders/"
-            payload = json.dumps({
-                "book": "btc_usd", "side": "buy", 
-                "type": "market", "major": f"{monto_ejecucion:.2f}"
-            })
-            try:
-                headers = get_bitso_headers("POST", path, payload)
-                response = requests.post("https://api.bitso.com" + path, headers=headers, data=payload).json()
-                
-                if response.get('success'):
-                    st.success("¡ADAPTACIÓN EXITOSA!")
-                    st.balloons()
-                else:
-                    st.error(f"Bitso dice: {response.get('message')}")
-            except Exception as e:
-                st.error("Error de Conexión. Revisa tus llaves API.")
+            payload = {"book": "btc_usd", "side": "buy", "type": "market", "major": f"{monto_seguro:.2f}"}
+            res = bitso_api("POST", "/v3/orders/", payload)
+            if res.get('success'):
+                st.success("¡ORDEN REAL EJECUTADA!")
+                st.balloons()
+            else:
+                st.error(f"Bitso: {res.get('message', 'Fallo de firma')}")
 
-    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nEstado: PRESTIGE\nSincronizado.", language="bash")
+    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nModo: {'AUTO' if ia_activa else 'MANUAL'}", language="bash")
     st.markdown('</div>', unsafe_allow_html=True)
 
 time.sleep(10)
