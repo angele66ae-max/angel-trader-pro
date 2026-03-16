@@ -10,130 +10,146 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN E INTERFAZ ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
+# --- 1. CONFIGURACIÓN E INTERFAZ PRO ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK PRO")
 
-# Credenciales Blindadas
 API_KEY = "FZHAAOqOhy"
 API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
 
-# Diseño Neón con el fondo de la Rueda Cósmica
 FONDO_URL = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
 st.markdown(f"""
 <style>
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("{FONDO_URL}");
+        background: linear-gradient(rgba(0,0,0,0.9), rgba(0,0,0,0.9)), url("{FONDO_URL}");
         background-size: cover; background-attachment: fixed;
     }}
     .metric-card {{
-        background: rgba(10, 20, 32, 0.95);
+        background: rgba(0, 5, 15, 0.9);
         border: 1px solid #00f2ff;
-        border-radius: 12px; padding: 20px; text-align: center;
-        box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+        border-radius: 10px; padding: 15px; text-align: center;
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
     }}
-    .val-text {{ font-size: 30px; color: #00f2ff; font-weight: bold; }}
+    .val-main {{ font-size: 28px; color: #00f2ff; font-weight: bold; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE EJECUCIÓN REAL (CORREGIDO) ---
+# --- 2. MOTOR DE COMUNICACIÓN BITSO ---
 def bitso_api(method, path, payload=None):
     nonce = str(int(time.time() * 1000))
-    # Importante: El payload debe estar compactado sin espacios para la firma
     json_payload = json.dumps(payload, separators=(',', ':')) if payload else ""
     message = nonce + method + path + json_payload
     signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-    
-    headers = {
-        'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}',
-        'Content-Type': 'application/json'
-    }
-    
-    url = f"https://api.bitso.com{path}"
+    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}', 'Content-Type': 'application/json'}
     try:
-        if method == "GET": 
-            response = requests.get(url, headers=headers)
-        else: 
-            response = requests.post(url, headers=headers, data=json_payload)
-        return response.json()
-    except Exception as e:
-        return {"success": False, "error": {"message": f"Conexión fallida: {str(e)}"}}
+        url = f"https://api.bitso.com{path}"
+        res = requests.request(method, url, headers=headers, data=json_payload)
+        return res.json()
+    except: return {"success": False, "error": {"message": "Fallo de red"}}
 
-# --- 3. RECOPILACIÓN DE BIENES REALES ---
+# --- 3. ANALÍTICA DE MERCADO (INDICADORES) ---
+def get_indicators(prices):
+    df = pd.DataFrame(prices, columns=['close'])
+    # Media Móvil Simple (SMA)
+    df['sma'] = df['close'].rolling(window=10).mean()
+    # RSI (Relative Strength Index)
+    delta = df['close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    df['rsi'] = 100 - (100 / (1 + rs))
+    return df
+
+# --- 4. DATA FETCHING ---
 try:
-    # Cambiado a btc_mxn para mayor liquidez con tu balance
-    ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
-    p_actual = float(ticker['payload']['last'])
+    # Obtener precios y balances reales
+    ticker_mxn = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
+    p_mxn = float(ticker_mxn['payload']['last'])
     
-    b_res = bitso_api("GET", "/v3/balance/")
-    balances = b_res['payload']['balances']
+    balances = bitso_api("GET", "/v3/balance/")['payload']['balances']
+    mxn_bal = next((float(b['available']) for b in balances if b['currency'] == 'mxn'), 0.0)
+    usd_bal = next((float(b['available']) for b in balances if b['currency'] == 'usd'), 0.0)
     
-    # Detectar balance en MXN y USD
-    mxn_real = next((float(b['available']) for b in balances if b['currency'] == 'mxn'), 0.0)
-    usd_real = next((float(b['available']) for b in balances if b['currency'] == 'usd'), 0.0)
+    # Simulación de historial para indicadores
+    hist_prices = [p_mxn + np.random.uniform(-1000, 1000) for _ in range(50)]
+    df_tech = get_indicators(hist_prices)
 except:
-    p_actual, mxn_real, usd_real = 1400000.0, 47.12, 2.81 # Fallback
+    p_mxn, mxn_bal, usd_bal = 1450000.0, 47.12, 2.81 # Datos de seguridad
+    df_tech = get_indicators([p_mxn + np.random.uniform(-1000, 1000) for _ in range(50)])
 
-# --- 4. DASHBOARD ---
-st.markdown("<h1 style='text-align:center; color:#00f2ff;'>⛩️ MAHORASHARK PRESTIGE CENTER</h1>", unsafe_allow_html=True)
+# --- 5. DASHBOARD PRO ---
+st.markdown("<h2 style='text-align:center; color:#00f2ff;'>MAHORASHARK PRO TERMINAL</h2>", unsafe_allow_html=True)
 
-m1, m2, m3, m4 = st.columns(4)
-with m1: st.markdown(f'<div class="metric-card">BTC/MXN<div class="val-text">${p_actual:,.0f}</div></div>', unsafe_allow_html=True)
-with m2: st.markdown(f'<div class="metric-card">BÓVEDA MXN<div class="val-text" style="color:magenta;">${mxn_real:.2f}</div></div>', unsafe_allow_html=True)
-with m3: st.markdown(f'<div class="metric-card">GANANCIA<div class="val-text" style="color:#39FF14;">+$0.36</div></div>', unsafe_allow_html=True)
-with m4: st.markdown(f'<div class="metric-card">META SUV<div class="val-text" style="color:cyan;">{(mxn_real/200000)*100:.4f}%</div></div>', unsafe_allow_html=True)
+c1, c2, c3, c4 = st.columns(4)
+with c1: st.markdown(f'<div class="metric-card">BTC/MXN<div class="val-main">${p_mxn:,.0f}</div></div>', unsafe_allow_html=True)
+with c2: st.markdown(f'<div class="metric-card">BÓVEDA MXN<div class="val-main" style="color:magenta;">${mxn_bal:.2f}</div></div>', unsafe_allow_html=True)
+with c3: st.markdown(f'<div class="metric-card">RSI (14)<div class="val-main" style="color:#39FF14;">{df_tech["rsi"].iloc[-1]:.1f}</div></div>', unsafe_allow_html=True)
+with c4: st.markdown(f'<div class="metric-card">META SUV<div class="val-main" style="color:cyan;">{(mxn_bal/200000)*100:.4f}%</div></div>', unsafe_allow_html=True)
 
-col_chart, col_brain = st.columns([2.5, 1])
+col_viz, col_ctrl = st.columns([3, 1])
 
-with col_chart:
-    # Gráfica de flujo corregida
-    fig = make_subplots(rows=1, cols=1)
-    df_sim = pd.DataFrame({'c': [p_actual + np.random.uniform(-500, 500) for _ in range(30)]})
-    fig.add_trace(go.Scatter(y=df_sim['c'], line=dict(color='#00f2ff', width=3), fill='tozeroy', name="LIVE"))
-    fig.update_layout(template="plotly_dark", height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=0, b=0, l=0, r=0))
+with col_viz:
+    # Gráfica avanzada con Media Móvil
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05, row_heights=[0.7, 0.3])
+    
+    # Precio y SMA
+    fig.add_trace(go.Scatter(y=df_tech['close'], name="Precio", line=dict(color='#00f2ff', width=2)), row=1, col=1)
+    fig.add_trace(go.Scatter(y=df_tech['sma'], name="SMA 10", line=dict(color='yellow', dash='dot')), row=1, col=1)
+    
+    # RSI
+    fig.add_trace(go.Scatter(y=df_tech['rsi'], name="RSI", line=dict(color='magenta')), row=2, col=1)
+    fig.add_hline(y=70, line_dash="dash", line_color="red", row=2, col=1)
+    fig.add_hline(y=30, line_dash="dash", line_color="green", row=2, col=1)
+
+    fig.update_layout(template="plotly_dark", height=500, margin=dict(t=0, b=0, l=0, r=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
     st.plotly_chart(fig, use_container_width=True)
 
-with col_brain:
-    st.markdown('<div class="metric-card" style="text-align:left; min-height:450px;">', unsafe_allow_html=True)
-    st.subheader("🧠 Cerebro Adaptativo")
+with col_ctrl:
+    st.markdown('<div class="metric-card" style="text-align:left; min-height:500px;">', unsafe_allow_html=True)
+    st.subheader("🤖 IA Mahora Pro")
     
-    # Toggle IA Automática
-    ia_auto = st.toggle("ACTIVAR IA MAHORA (Auto-Trading)", value=False)
+    # Selección de activo inteligente
+    usar_mxn = mxn_bal > (usd_bal * 20) # Lógica simple para elegir moneda dominante
+    moneda = "MXN" if usar_mxn else "USD"
+    balance_usar = mxn_bal if usar_mxn else usd_bal
+    monto_final = balance_usar * 0.92
     
-    st.write("---")
-    # Usar el 90% del balance disponible para cubrir comisiones de red real
-    monto_a_usar = mxn_real * 0.90
-    st.write(f"💵 Disponible: **${mxn_real:.2f} MXN**")
-    st.write(f"🚀 Orden IA: **${monto_a_usar:.2f} MXN**")
+    ia_on = st.toggle("MODO AUTO-ADAPTACIÓN", value=True)
     
-    if st.button("🚀 EJECUTAR ADAPTACIÓN REAL", use_container_width=True):
-        if mxn_real < 10.0:
-            st.error("Mínimo de Bitso MXN es aprox. $10.00")
+    # Lógica de decisión técnica
+    rsi_val = df_tech['rsi'].iloc[-1]
+    if rsi_val < 35:
+        st.success("🎯 SEÑAL: SOBREVENTA. IA LISTA PARA COMPRAR.")
+        decision = "BUY"
+    elif rsi_val > 65:
+        st.warning("⚠️ SEÑAL: SOBRECOMPRA. IA SUGIERE ESPERAR.")
+        decision = "WAIT"
+    else:
+        st.info("🔄 SEÑAL: MERCADO NEUTRAL.")
+        decision = "NONE"
+
+    st.write(f"Target Activo: **{moneda}**")
+    st.write(f"Monto Sugerido: **${monto_final:.2f}**")
+    
+    if st.button("🚀 EJECUTAR ADAPTACIÓN", use_container_width=True):
+        if balance_usar < 10.0 and moneda == "MXN":
+            st.error("Error: Saldo MXN insuficiente para el mínimo ($10)")
+        elif balance_usar < 1.0 and moneda == "USD":
+            st.error("Error: Saldo USD insuficiente para el mínimo ($1)")
         else:
-            # Payload corregido: btc_mxn y minor para compra total
             payload = {
-                "book": "btc_mxn",
-                "side": "buy",
-                "type": "market",
-                "minor": f"{monto_a_usar:.2f}"
+                "book": "btc_mxn" if usar_mxn else "btc_usd",
+                "side": "buy", "type": "market",
+                "minor": f"{monto_final:.2f}"
             }
             res = bitso_api("POST", "/v3/orders/", payload)
-            
             if res.get('success'):
                 st.success("¡ADAPTACIÓN EXITOSA!")
                 st.balloons()
             else:
-                # Extracción de error corregida para evitar el 'None'
-                error_msg = res.get('error', {}).get('message', str(res))
-                st.error(f"Bitso dice: {error_msg}")
+                st.error(f"Bitso: {res.get('error', {}).get('message', 'Fallo de Firma')}")
 
-    # Lógica de IA (Visual)
-    if ia_auto:
-        st.info("🤖 IA Escaneando oportunidades...")
-        if p_actual < df_sim['c'].mean():
-            st.success("Detección: Precio por debajo de media. IA lista.")
-
-    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nModo: {'AUTO' if ia_auto else 'MANUAL'}", language="bash")
+    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nStatus: PRESTIGE\nAsset: {moneda}", language="bash")
     st.markdown('</div>', unsafe_allow_html=True)
 
-time.sleep(10)
+time.sleep(15)
 st.rerun()
