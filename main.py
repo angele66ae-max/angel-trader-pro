@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import requests
 import time
 import hmac
@@ -8,66 +9,67 @@ import json
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE PODER ---
+# --- 1. ESTÉTICA PRESTIGE RECUPERADA ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
+
+# Fondo original y estilos neón
+FONDO_URL = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
+st.markdown(f"""
+<style>
+    .stApp {{
+        background: linear-gradient(rgba(0,0,0,0.8), rgba(0,0,0,0.8)), url("{FONDO_URL}");
+        background-size: cover; background-attachment: fixed;
+    }}
+    .metric-box {{
+        background: rgba(0, 10, 20, 0.9);
+        border: 2px solid #00f2ff;
+        border-radius: 15px; padding: 15px; text-align: center;
+        box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
+    }}
+    .title-neon {{ color: #00f2ff; font-size: 35px; font-weight: bold; text-shadow: 0 0 10px #00f2ff; }}
+    .val-neon {{ font-size: 24px; color: #39FF14; font-weight: bold; }}
+</style>
+""", unsafe_allow_html=True)
+
+# --- 2. MOTOR DE CONEXIÓN SEGURO ---
 API_KEY = "FZHAAOqOhy"
 API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
 
-def bitso_api(method, path, payload=None):
+def bitso_call(method, path, payload=None):
     nonce = str(int(time.time() * 1000))
-    json_payload = json.dumps(payload, separators=(',', ':')) if payload else ""
-    message = nonce + method + path + json_payload
-    signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}', 'Content-Type': 'application/json'}
+    json_pay = json.dumps(payload, separators=(',', ':')) if payload else ""
+    msg = nonce + method + path + json_pay
+    sig = hmac.new(API_SECRET.encode(), msg.encode(), hashlib.sha256).hexdigest()
+    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{sig}', 'Content-Type': 'application/json'}
     try:
-        url = f"https://api.bitso.com{path}"
-        res = requests.request(method, url, headers=headers, data=json_payload)
+        res = requests.request(method, f"https://api.bitso.com{path}", headers=headers, data=json_pay)
         return res.json()
-    except: return {"success": False, "error": {"message": "Error de Red"}}
+    except: return {"success": False, "error": {"message": "Fallo de Red"}}
 
-# --- OBTENCIÓN DE BALANCE REAL ---
+# --- 3. RECOPILACIÓN DE DATOS REALES ---
 try:
-    balances = bitso_api("GET", "/v3/balance/")['payload']['balances']
-    mxn_disponible = next((float(b['available']) for b in balances if b['currency'] == 'mxn'), 0.0)
-    usd_disponible = next((float(b['available']) for b in balances if b['currency'] == 'usd'), 0.0)
+    # Datos de mercado y balance
+    ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
+    precio_btc = float(ticker['payload']['last'])
+    
+    bal_res = bitso_call("GET", "/v3/balance/")
+    balances = bal_res['payload']['balances']
+    mxn_val = next((float(b['available']) for b in balances if b['currency'] == 'mxn'), 0.0)
+    usd_val = next((float(b['available']) for b in balances if b['currency'] == 'usd'), 0.0)
 except:
-    mxn_disponible, usd_disponible = 47.12, 2.81 #
+    precio_btc, mxn_val, usd_val = 1450000.0, 47.12, 2.81
 
-# --- LÓGICA DE GASTO TOTAL ---
-# Priorizamos MXN si es mayor a $10, de lo contrario usamos USD si es mayor a $1
-if mxn_disponible >= 10.0:
-    moneda_target = "MXN"
-    book = "btc_mxn"
-    # Usamos el 99.5% para cubrir el fee de Bitso y evitar el error de balance insuficiente
-    monto_total = mxn_disponible * 0.995 
-else:
-    moneda_target = "USD"
-    book = "btc_usd"
-    monto_total = usd_disponible * 0.995
+# --- 4. INTERFAZ VISUAL MAHORA ---
+st.markdown("<div class='title-neon' style='text-align:center;'>⛩️ MAHORASHARK PRESTIGE: MAX POWER</div>", unsafe_allow_html=True)
+st.write("")
 
-# --- INTERFAZ ---
-st.title("⛩️ MAHORASHARK: MAX POWER")
-st.write(f"### Fondos Totales Detectados: **${(mxn_disponible if moneda_target == 'MXN' else usd_disponible):.2f} {moneda_target}**")
+c1, c2, c3, c4 = st.columns(4)
+with c1: st.markdown(f'<div class="metric-box">BTC/MXN<br><span class="val-neon">${precio_btc:,.0f}</span></div>', unsafe_allow_html=True)
+with c2: st.markdown(f'<div class="metric-box">DISPONIBLE MXN<br><span class="val-neon" style="color:magenta;">${mxn_val:.2f}</span></div>', unsafe_allow_html=True)
+with c3: st.markdown(f'<div class="metric-box">DISPONIBLE USD<br><span class="val-neon" style="color:cyan;">${usd_val:.2f}</span></div>', unsafe_allow_html=True)
+with c4: st.markdown(f'<div class="metric-box">META SUV<br><span class="val-neon">{(mxn_val/200000)*100:.4f}%</span></div>', unsafe_allow_html=True)
 
-if st.button(f"🚀 ADAPTAR TODO EL CAPITAL ({moneda_target})", use_container_width=True):
-    if monto_total < 1.0 and moneda_target == "USD":
-        st.error("Saldo insuficiente para el mínimo de $1 USD")
-    elif monto_total < 10.0 and moneda_target == "MXN":
-        st.error("Saldo insuficiente para el mínimo de $10 MXN")
-    else:
-        # Ejecución con el máximo capital posible
-        payload = {
-            "book": book,
-            "side": "buy",
-            "type": "market",
-            "minor": f"{monto_total:.2f}"
-        }
-        res = bitso_api("POST", "/v3/orders/", payload)
-        
-        if res.get('success'):
-            st.success(f"¡ADAPTACIÓN TOTAL DE ${monto_total:.2f} EXITOSA!")
-            st.balloons()
-        else:
-            error_msg = res.get('error', {}).get('message', 'Fallo de Firma')
-            st.error(f"Bitso dice: {error_msg}")
+col_main, col_side = st.columns([2.5, 1])
 
-st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nModo: MAX_CAPITAL\nSincronizado.")
+with col_main:
+    # Gráfica de Velas Neón Recuperada [cite: Captura de pantalla 2026-03-15 144333.png
