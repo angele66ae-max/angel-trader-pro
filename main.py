@@ -1,25 +1,33 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 import requests
 from datetime import datetime
 import time
 
-# --- 1. CONFIGURACIÓN DEL SISTEMA ---
+# Intentamos cargar acciones sin que se rompa el sistema
+try:
+    import yfinance as yf
+    ACCIONES_LISTAS = True
+except ImportError:
+    ACCIONES_LISTAS = False
+
+# --- 1. CONFIGURACIÓN ---
 st.set_page_config(layout="wide", page_title="MAHORASHARK AUTO-PILOT")
 
-# Datos reales de tu bóveda
+# Tus activos reales
 MI_BTC = 0.00003542
 META_USD = 115.00
 
 st.markdown("<h1 style='color:#00f2ff; text-align:center;'>⛩️ MAHORASHARK: AUTO-PILOT ACTIVO</h1>", unsafe_allow_html=True)
 
-# Contenedores dinámicos
+# Contenedores dinámicos para que la página no parpadee
 status_ia = st.empty()
-monitor_progreso = st.empty()
+monitor_stats = st.empty()
 log_terminal = st.empty()
 
-# --- 2. EL CEREBRO DE EJECUCIÓN AUTOMÁTICA ---
-def sistema_autonomo():
+# --- 2. CEREBRO DE ADAPTACIÓN AUTOMÁTICA ---
+def ejecutar_ia_autonoma():
     while True:
         try:
             # Sincronización de precio real
@@ -29,29 +37,48 @@ def sistema_autonomo():
             progreso = (valor_btc / META_USD) * 100
             
             # Verificación de saldo disponible
-            # IMPORTANTE: Aquí se conecta el saldo real de tu cuenta
+            # Nota: Cambia estos valores a tus llaves API para que sean dinámicos
             saldo_mxn = 0.00 
-            saldo_usd = 0.22 #
+            saldo_usd = 0.22 
 
-            # Actualizar Monitor de Bóveda
-            with monitor_progreso.container():
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Valor BTC", f"${valor_btc:.2f} USD")
-                c2.metric("Saldo Real", f"${saldo_mxn} MXN")
-                c3.metric("Progreso Meta", f"{progreso:.4f}%")
+            # Mostrar métricas en tiempo real
+            with monitor_stats.container():
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Bóveda BTC (USD)", f"${valor_btc:.2f}")
+                m2.metric("Saldo Disponible", f"${saldo_mxn} MXN")
+                m3.metric("Meta ($115)", f"{progreso:.4f}%")
 
-            # --- LÓGICA DE COMPRA AUTOMÁTICA ---
-            # La IA decide sola basándose en el saldo y el precio
+            # --- LÓGICA DE DECISIÓN AUTÓNOMA ---
+            # La IA decide sola: Si hay saldo > $1 USD o $10 MXN, intenta comprar
             if saldo_mxn >= 10.0 or saldo_usd >= 1.0:
-                status_ia.success(f"🚀 IA: ¡OPORTUNIDAD! Ejecutando compra automática ahora...")
-                # Aquí la IA envía la orden de compra a la API sin intervención humana
-                time.sleep(3) 
+                status_ia.success("🚀 IA: ¡OPORTUNIDAD DETECTADA! Ejecutando compra automática...")
+                # Aquí iría la orden real a la API
+                time.sleep(2)
             else:
-                # El bot se mantiene en espera activa si no hay fondos
-                status_ia.warning(f"⚠️ IA: Escaneando... Esperando saldo para compra automática ($1 USD min).")
+                # El bot se mantiene escaneando si no hay fondos suficientes
+                status_ia.warning(f"🤖 IA: Escaneando... Esperando saldo mínimo ($10 MXN / $1 USD)")
+
+            # Radar de Acciones (Si yfinance está instalado)
+            if ACCIONES_LISTAS:
+                # La IA monitorea Tesla automáticamente como activo secundario
+                tsla = yf.Ticker("TSLA")
+                p_tsla = tsla.history(period="1d")['Close'].iloc[-1]
+                st.write(f"📈 Monitor Stock: TSLA a ${p_tsla:.2f} USD")
 
             with log_terminal:
-                st.code(f"[{datetime.now().strftime('%H:%M:%S')}] Escaneando mercados... Status: PRESTIGE | Modo: AUTO", language="bash")
+                st.code(f"[{datetime.now().strftime('%H:%M:%S')}] IA Escaneando... Status: PRESTIGE | Modo: AUTO", language="bash")
 
         except Exception as e:
-            st.error(f
+            # Corregido: El paréntesis y las comillas ahora cierran correctamente
+            st.error(f"Error en el sistema: {str(e)}")
+            
+        time.sleep(20) # Ciclo de escaneo automático
+        st.rerun()
+
+# --- 3. INTERRUPTOR DE ENCENDIDO ---
+activar = st.toggle("⚡ INICIAR CEREBRO AUTÓNOMO", value=True)
+
+if activar:
+    ejecutar_ia_autonoma()
+else:
+    st.info("Sistema en pausa. Active el interruptor para iniciar la compra automática.")
