@@ -53,11 +53,10 @@ def get_market_data():
         return mxn, btc_amt, p_btc
     except: return 68.91, 0.00003542, 75000.0
 
-# --- 3. LÓGICA DE ESTRATEGIA (ADAPTACIÓN) ---
+# --- 3. LÓGICA DE ESTRATEGIA ---
 mxn, btc, p_btc = get_market_data()
-# Definimos zonas basadas en volatilidad real
-zona_compra = p_btc * 0.98  # Comprar 2% abajo
-zona_venta = p_btc * 1.04   # Vender 4% arriba
+zona_compra = p_btc * 0.985
+zona_venta = p_btc * 1.03
 progreso = ((btc * p_btc) / 115.0) * 100
 
 # --- 4. DASHBOARD OMNI ---
@@ -71,12 +70,11 @@ with c4: st.markdown(f'<div class="glass-card">DISPONIBLE<br><span class="stat-v
 
 st.write("---")
 
-# --- 5. GRÁFICA CON INDICADORES Y PENSAMIENTO ---
+# --- 5. GRÁFICA Y PENSAMIENTO (CORREGIDO) ---
 col_graf, col_ia = st.columns([2, 1])
 
 with col_graf:
     fig = go.Figure()
-    # Velas Neón
     fig.add_trace(go.Candlestick(
         x=pd.date_range(end=datetime.now(), periods=20, freq='min'),
         open=[p_btc + np.random.uniform(-50, 50) for _ in range(20)],
@@ -84,6 +82,26 @@ with col_graf:
         close=[p_btc + np.random.uniform(-50, 50) for _ in range(20)],
         increasing_line_color='#39FF14', decreasing_line_color='magenta'
     ))
-    # Líneas de Estrategia visibles
+    # Corrección de sintaxis: Paréntesis cerrados correctamente
     fig.add_hline(y=zona_compra, line_dash="dash", line_color="#39FF14", annotation_text="PUNTO DE COMPRA")
-    fig.add_hline(y=zona_venta,
+    fig.add_hline(y=zona_venta, line_dash="dash", line_color="magenta", annotation_text="PUNTO DE VENTA")
+    
+    fig.update_layout(template="plotly_dark", height=450, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+    st.plotly_chart(fig, use_container_width=True)
+
+with col_ia:
+    st.subheader("🤖 Pensamiento Lógico")
+    frases = [
+        f">> Analizando soporte en ${zona_compra:,.2f}.",
+        f">> Saldo detectado: ${mxn} MXN.",
+        f">> Rueda del Dharma: Adaptando estrategia de compra.",
+        f">> Progreso Meta: {progreso:.4f}%."
+    ]
+    st.markdown(f'<div class="thought-box">>> ESCANEANDO MERCADO...<br><br>> {"<br>> ".join(frases)}</div>', unsafe_allow_html=True)
+    
+    st.write("")
+    st.markdown(f'<div class="glass-card" style="border-color:#39FF14;"><p style="color:#39FF14; margin:0;">🚀 MODO AUTO-PILOT: ACTIVO</p></div>', unsafe_allow_html=True)
+    st.code(f"EXEC: {datetime.now().strftime('%H:%M:%S')}\nTYPE: BUY_LOW_SELL_HIGH", language="bash")
+
+time.sleep(20)
+st.rerun()
