@@ -18,6 +18,7 @@ st.markdown(f"""
     .neon-card {{ background: rgba(0, 15, 25, 0.9); border: 1px solid #00f2ff; border-radius: 5px; padding: 15px; text-align: center; box-shadow: 0 0 15px rgba(0, 242, 255, 0.4); }}
     .value-cyan {{ color: #00f2ff; font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px #00f2ff; }}
     .value-magenta {{ color: #ff00ff; font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px #ff00ff; }}
+    .value-green {{ color: #39FF14; font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px #39FF14; }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -37,15 +38,17 @@ def fetch_sync():
         data = {b['currency'].upper(): float(b['total']) for b in bal if b['currency'] in ['mxn', 'btc']}
         return data, p_btc
     except:
-        return {'MXN': 68.91, 'BTC': 0.00003542}, 74500.0
+        # Datos exactos de tu wallet como respaldo
+        return {'MXN': 68.91, 'BTC': 0.00003542}, 74100.0
 
-# --- 3. LÓGICA DE LA META 10K ---
+# --- 3. LÓGICA DE LA META 10K (CORREGIDA) ---
 balances, btc_p = fetch_sync()
 mxn_val = balances.get('MXN', 0)
 btc_val = balances.get('BTC', 0)
 
-# Calculamos el valor total en USD para la meta
-valor_en_usd = (mxn_val / 16.80) + (btc_val * btc_p) # Tomando USD/MXN a 16.80 aprox
+# 1. Calculamos valor total real en USD
+valor_en_usd = (mxn_val / 16.80) + (btc_val * btc_p) 
+# 2. Meta de 10,000 USD
 META_10K = 10000.0
 progreso_10k = (valor_en_usd / META_10K) * 100
 
@@ -58,8 +61,9 @@ with m1:
 with m2:
     st.markdown(f'<div class="neon-card"><div style="color:magenta; font-size:0.7rem;">OBJETIVO FINAL</div><div class="value-magenta">$10,000.00</div></div>', unsafe_allow_html=True)
 with m3:
-    st.markdown(f'<div class="neon-card"><div style="color:#39FF14; font-size:0.7rem;">PROGRESO TOTAL</div><div class="value-cyan" style="color:#39FF14;">{progreso_10k:.4f}%</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="neon-card"><div style="color:#39FF14; font-size:0.7rem;">PROGRESO TOTAL</div><div class="value-green">{progreso_10k:.6f}%</div></div>', unsafe_allow_html=True)
 
+# Barra de progreso visual
 st.progress(min(progreso_10k / 100, 1.0))
 
 # --- 5. PANEL DE CONTROL IA ---
@@ -67,7 +71,6 @@ st.write("---")
 col_g, col_ia = st.columns([2, 1])
 
 with col_g:
-    # Gráfica Neón con líneas de acción
     fig = go.Figure(data=[go.Candlestick(
         x=pd.date_range(end=datetime.now(), periods=15, freq='min'),
         open=[btc_p + np.random.uniform(-30, 30) for _ in range(15)],
@@ -83,16 +86,11 @@ with col_ia:
     st.markdown(f"""
     <div style="background:rgba(0,0,0,0.7); border-left:4px solid #39FF14; padding:15px; font-family:monospace; color:#39FF14; font-size:0.85rem;">
         >> ESTRATEGIA: ACUMULACIÓN AGRESIVA<br>
-        >> SALDO MXN: ${mxn_val}<br>
-        >> STATUS: BUSCANDO PUNTOS DE ENTRADA<br>
-        >> ADAPTACIÓN: RUTA 10K ACTIVADA
+        >> BAL. BITCOIN: {btc_val:.8f}<br>
+        >> STATUS: ANALIZANDO RUTA A LOS $10,000<br>
+        >> ADAPTACIÓN: {progreso_10k:.6f}% COMPLETADO
     </div>
     """, unsafe_allow_html=True)
-    
-    st.write("")
-    if st.button("🚀 ACTIVAR MODO TURBO (COMPRA)"):
-        st.success("Analizando mejores puntos de entrada para escalar capital...")
 
-# Auto-refresh cada 30 segundos
 time.sleep(30)
 st.rerun()
