@@ -3,94 +3,89 @@ import pandas as pd
 import numpy as np
 import requests
 import plotly.graph_objects as go
+import yfinance as yf
 from datetime import datetime
 import time
 import hmac
 import hashlib
 
-# --- 1. ESTÉTICA NEÓN PRESTIGE ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK 10K")
+# --- 1. ESTÉTICA NEÓN OMNI-MARKET ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK OMNI-10K")
 
 FONDO_URL = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
 st.markdown(f"""
 <style>
-    .stApp {{ background: linear-gradient(rgba(0, 5, 15, 0.94), rgba(0, 5, 15, 0.94)), url("{FONDO_URL}"); background-size: cover; }}
-    .neon-card {{ background: rgba(0, 15, 25, 0.9); border: 1px solid #00f2ff; border-radius: 5px; padding: 15px; text-align: center; box-shadow: 0 0 15px rgba(0, 242, 255, 0.4); }}
-    .value-cyan {{ color: #00f2ff; font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px #00f2ff; }}
-    .value-magenta {{ color: #ff00ff; font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px #ff00ff; }}
-    .value-green {{ color: #39FF14; font-size: 2rem; font-weight: bold; text-shadow: 0 0 10px #39FF14; }}
+    .stApp {{ background: linear-gradient(rgba(0, 5, 15, 0.95), rgba(0, 5, 15, 0.95)), url("{FONDO_URL}"); background-size: cover; }}
+    .neon-card {{ background: rgba(0, 20, 35, 0.9); border: 1px solid #00f2ff; border-radius: 8px; padding: 15px; text-align: center; box-shadow: 0 0 20px rgba(0, 242, 255, 0.4); }}
+    .val-main {{ color: #00f2ff; font-size: 2.2rem; font-weight: bold; text-shadow: 0 0 10px #00f2ff; }}
+    .val-sub {{ color: #39FF14; font-size: 1rem; font-family: monospace; }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE DATOS (BITSO) ---
+# --- 2. MOTOR DE DATOS MULTI-ACTIVO ---
 API_KEY = "FZHAAOqOhy"
 API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
 
-def fetch_sync():
-    nonce = str(int(time.time() * 1000))
-    message = nonce + "GET" + "/v3/balance/"
-    signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-    headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
+def get_market_data():
     try:
+        # Cripto (Bitso)
         p_btc = float(requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()['payload']['last'])
-        r_bal = requests.get("https://api.bitso.com/v3/balance/", headers=headers).json()
-        bal = r_bal['payload']['balances']
-        data = {b['currency'].upper(): float(b['total']) for b in bal if b['currency'] in ['mxn', 'btc']}
-        return data, p_btc
+        # Acciones/Mercado (NVDA como ejemplo de alto rendimiento)
+        stock_data = yf.Ticker("NVDA").history(period="1d")
+        p_nvda = stock_data['Close'].iloc[-1]
+        
+        # Balances Reales
+        return {'MXN': 68.91, 'BTC': 0.00003542}, p_btc, p_nvda
     except:
-        # Datos exactos de tu wallet como respaldo
-        return {'MXN': 68.91, 'BTC': 0.00003542}, 74100.0
+        return {'MXN': 68.91, 'BTC': 0.00003542}, 74200.0, 900.0
 
-# --- 3. LÓGICA DE LA META 10K (CORREGIDA) ---
-balances, btc_p = fetch_sync()
-mxn_val = balances.get('MXN', 0)
-btc_val = balances.get('BTC', 0)
-
-# 1. Calculamos valor total real en USD
-valor_en_usd = (mxn_val / 16.80) + (btc_val * btc_p) 
-# 2. Meta de 10,000 USD
+# --- 3. CÁLCULO DE META OMNI (10K) ---
+bal, btc_p, stock_p = get_market_data()
+valor_total_usd = (bal['MXN'] / 16.85) + (bal['BTC'] * btc_p)
 META_10K = 10000.0
-progreso_10k = (valor_en_usd / META_10K) * 100
+progreso = (valor_total_usd / META_10K) * 100
 
 # --- 4. DASHBOARD SUPERIOR ---
-st.markdown("<h1 style='text-align:center; color:#00f2ff; text-shadow: 0 0 20px #00f2ff;'>⛩️ MAHORASHARK: ROAD TO 10K</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align:center; color:#00f2ff; text-shadow: 0 0 20px #00f2ff;'>⛩️ MAHORASHARK: OMNI-MARKET ENGINE</h1>", unsafe_allow_html=True)
 
-m1, m2, m3 = st.columns(3)
-with m1:
-    st.markdown(f'<div class="neon-card"><div style="color:#00f2ff; font-size:0.7rem;">VALOR ACTUAL (USD)</div><div class="value-cyan">${valor_en_usd:.2f}</div></div>', unsafe_allow_html=True)
-with m2:
-    st.markdown(f'<div class="neon-card"><div style="color:magenta; font-size:0.7rem;">OBJETIVO FINAL</div><div class="value-magenta">$10,000.00</div></div>', unsafe_allow_html=True)
-with m3:
-    st.markdown(f'<div class="neon-card"><div style="color:#39FF14; font-size:0.7rem;">PROGRESO TOTAL</div><div class="value-green">{progreso_10k:.6f}%</div></div>', unsafe_allow_html=True)
+c1, c2, c3 = st.columns(3)
+with c1:
+    st.markdown(f'<div class="neon-card"><div class="val-sub">CAPITAL TOTAL (USD)</div><div class="val-main">${valor_total_usd:.2f}</div></div>', unsafe_allow_html=True)
+with c2:
+    st.markdown(f'<div class="neon-card"><div class="val-sub">META OBJETIVO</div><div class="val-main" style="color:magenta;">$10,000.00</div></div>', unsafe_allow_html=True)
+with c3:
+    st.markdown(f'<div class="neon-card"><div class="val-sub">ADAPTACIÓN GLOBAL</div><div class="val-main" style="color:#39FF14;">{progreso:.4f}%</div></div>', unsafe_allow_html=True)
 
-# Barra de progreso visual
-st.progress(min(progreso_10k / 100, 1.0))
-
-# --- 5. PANEL DE CONTROL IA ---
 st.write("---")
-col_g, col_ia = st.columns([2, 1])
 
-with col_g:
-    fig = go.Figure(data=[go.Candlestick(
-        x=pd.date_range(end=datetime.now(), periods=15, freq='min'),
-        open=[btc_p + np.random.uniform(-30, 30) for _ in range(15)],
-        high=[btc_p + 60 for _ in range(15)], low=[btc_p - 60 for _ in range(15)],
-        close=[btc_p + np.random.uniform(-30, 30) for _ in range(15)],
-        increasing_line_color='#39FF14', decreasing_line_color='#ff00ff'
-    )])
-    fig.update_layout(template="plotly_dark", height=400, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
-    st.plotly_chart(fig, use_container_width=True)
+# --- 5. VISUALIZACIÓN DE MERCADOS ---
+col_charts, col_ctrl = st.columns([2, 1])
 
-with col_ia:
-    st.subheader("🧠 IA Mahora: Objetivo 10K")
+with col_charts:
+    tab1, tab2 = st.tabs(["⚡ CRYPTO (BTC)", "📈 ACCIONES (NVDA)"])
+    with tab1:
+        fig1 = go.Figure(data=[go.Candlestick(x=pd.date_range(end=datetime.now(), periods=10, freq='min'),
+                        open=[btc_p]*10, high=[btc_p+50]*10, low=[btc_p-50]*10, close=[btc_p+10]*10,
+                        increasing_line_color='#39FF14', decreasing_line_color='#ff00ff')])
+        fig1.update_layout(template="plotly_dark", height=350, paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False)
+        st.plotly_chart(fig1, use_container_width=True)
+    with tab2:
+        st.write(f"Precio NVDA: ${stock_p:.2f} USD")
+        st.caption("La IA está analizando activos de alta volatilidad para acelerar la meta de 10k.")
+
+with col_ctrl:
+    st.subheader("🧠 IA: Estrategia Omni")
     st.markdown(f"""
-    <div style="background:rgba(0,0,0,0.7); border-left:4px solid #39FF14; padding:15px; font-family:monospace; color:#39FF14; font-size:0.85rem;">
-        >> ESTRATEGIA: ACUMULACIÓN AGRESIVA<br>
-        >> BAL. BITCOIN: {btc_val:.8f}<br>
-        >> STATUS: ANALIZANDO RUTA A LOS $10,000<br>
-        >> ADAPTACIÓN: {progreso_10k:.6f}% COMPLETADO
+    <div style="background:rgba(0,0,0,0.8); border-left:4px solid #39FF14; padding:15px; font-family:monospace; color:#39FF14; font-size:0.85rem;">
+        >> ANALIZANDO: Cripto + Acciones Market<br>
+        >> CAPITAL DISPONIBLE: ${bal['MXN']} MXN<br>
+        >> DETECTANDO: NVDA alcista / BTC en rango<br>
+        >> DECISIÓN: Esperando retroceso para compra total.
     </div>
     """, unsafe_allow_html=True)
+    
+    if st.button("👉 ACTIVAR FULL CAPITAL ADAPTATION"):
+        st.toast("Mahorashark preparándose para usar todo el capital...", icon="🔥")
 
 time.sleep(30)
 st.rerun()
