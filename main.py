@@ -1,85 +1,98 @@
 import streamlit as st
 import pandas as pd
-import yfinance as yf
-from alpaca_trade_api.rest import REST # pip install alpaca-trade-api
+import pandas_ta as ta
+import numpy as np # <-- IMPORTADO
 import requests
 import hmac
 import hashlib
 import time
 import json
+import yfinance as yf
+from alpaca_trade_api.rest import REST
 
-# --- 1. CONEXIÓN BI-LATERAL ---
-# Cripto (Bitso)
+# --- 1. LLAVES DE PODER (CONFIGURACIÓN) ---
 BITSO_KEY = "FZHAAOqOhy"
 BITSO_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
 
-# Bolsa (Alpaca) - Necesitas crear tu cuenta en alpaca.markets
+# NOTA: Para operar en la bolsa necesitas tus llaves de Alpaca.markets
 ALP_KEY = "TU_ALPACA_KEY"
 ALP_SECRET = "TU_ALPACA_SECRET"
 alpaca = REST(ALP_KEY, ALP_SECRET, "https://paper-api.alpaca.markets")
 
-st.set_page_config(layout="wide", page_title="MAHORA OMNI-EXCHANGE")
+st.set_page_config(layout="wide", page_title="MAHORA OMNI-BOT")
 
-# --- 2. FUNCIONES DE INTERCAMBIO ---
-def vender_cripto_comprar_accion(book, stock_symbol, monto_mxn):
-    # Paso A: Vender en Bitso
-    # (Aquí iría la función POST /v3/orders/ que ya tenemos)
-    st.warning(f"🔄 Iniciando intercambio: Venta de {book} -> Compra de {stock_symbol}")
-    
-    # Paso B: Ejecutar compra en Wall Street
-    # Calculamos cuántas acciones comprar con ese monto (aprox)
+# --- 2. GESTIÓN DE MEMORIA Y PROTECCIÓN ---
+if "ultimo_movimiento" not in st.session_state:
+    st.session_state.ultimo_movimiento = 0
+
+# --- 3. FUNCIONES DE DISPARO (ACCIONES Y CRIPTO) ---
+def trade_bitso(book, side, monto):
+    path = "/v3/orders/"
+    nonce = str(int(time.time() * 1000))
+    payload = {"book": book, "side": side, "type": "market", "minor": f"{monto:.2f}"}
+    json_payload = json.dumps(payload)
+    sig = hmac.new(BITSO_SECRET.encode(), (nonce + "POST" + path + json_payload).encode(), hashlib.sha256).hexdigest()
+    headers = {'Authorization': f'Bitso {BITSO_KEY}:{nonce}:{sig}', 'Content-Type': 'application/json'}
+    return requests.post(f"https://api.bitso.com{path}", headers=headers, data=json_payload).json()
+
+def trade_alpaca(symbol, monto_usd):
     try:
-        alpaca.submit_order(
-            symbol=stock_symbol,
-            notional=monto_mxn / 17.10, # Convertimos MXN a USD para Alpaca
-            side='buy',
-            type='market',
-            time_in_force='day'
-        )
-        return "✅ Intercambio Omni-Market Completado"
-    except Exception as e:
-        return f"❌ Error en el puente: {e}"
+        return alpaca.submit_order(symbol=symbol, notional=monto_usd, side='buy', type='market', time_in_force='day')
+    except Exception as e: return {"error": str(e)}
 
-# --- 3. DASHBOARD DE CONTROL TOTAL ---
-st.title("⛩️ MAHORASHARK: OMNI-TRADING BRIDGE")
+# --- 4. CEREBRO DE INTERCAMBIO (REBALANCEO) ---
+st.title("⛩️ MAHORASHARK: OMNI-EXCHANGE ENGINE")
 
-# Monitoreo simultáneo
-col_crypto, col_stocks = st.columns(2)
+# Monitor Cripto Real
+r_btc = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()['payload']
+btc_p = float(r_btc['last'])
 
-with col_crypto:
-    st.subheader("₿ Mercado Cripto (Bitso)")
-    btc_data = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()['payload']
-    btc_price = float(btc_data['last'])
-    st.metric("BTC/MXN", f"${btc_price:,.2f}")
+# Monitor Bolsa Real (NVDA)
+nvda_data = yf.Ticker("NVDA").history(period="1d", interval="1m")
+nvda_p = nvda_data['Close'].iloc[-1]
 
-with col_stocks:
-    st.subheader("📈 Wall Street (NVDA)")
-    nvda_data = yf.Ticker("NVDA").history(period="1d", interval="1m")
-    nvda_price = nvda_data['Close'].iloc[-1]
-    st.metric("NVIDIA USD", f"${nvda_price:.2f}")
+c1, c2, c3 = st.columns(3)
+c1.metric("BITCOIN (MXN)", f"${btc_p:,.2f}")
+c2.metric("NVIDIA (USD)", f"${nvda_p:.2f}")
+c3.metric("CAPITAL TOTAL", "$68.91 MXN")
 
 st.write("---")
 
-# --- 4. LÓGICA DE INTERCAMBIO (REBALANCEO) ---
-st.subheader("🧠 Estrategia de Rotación de Capital")
+# --- 5. LÓGICA DE ROTACIÓN ---
+# Si BTC está caro y la bolsa está barata -> ROTAR
+st.subheader("🧠 Estrategia: Rotación de Capital para los 10K")
 
-# EJEMPLO: Si BTC sube mucho y NVDA está en oferta (RSI bajo), rotamos capital.
-if btc_price > 1200000: # Precio de ejemplo para toma de ganancias
-    st.success("🎯 BTC en zona de toma de ganancias. Sugerencia: Rotar a Acciones Tech.")
+col_l, col_r = st.columns(2)
+
+with col_l:
+    st.write("### ₿ Lado Cripto")
+    # RSI Real de Bitcoin
+    trades = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn&limit=50").json()['payload']
+    df_btc = pd.DataFrame([float(t['price']) for t in trades], columns=['close'])
+    rsi_btc = ta.rsi(df_btc['close'], length=14).iloc[-1]
+    st.write(f"RSI BTC: {rsi_btc:.2f}")
     
-    if st.button("🚀 EJECUTAR ROTACIÓN: BTC -> NVDA"):
-        res = vender_cripto_comprar_accion("btc_mxn", "NVDA", 500) # Rotar $500 MXN
-        st.write(res)
+    if rsi_btc > 70: # Sobrecompra en BTC
+        st.success("🎯 Sugerencia: Vender BTC y comprar NVIDIA")
+        if st.button("🔄 EJECUTAR ROTACIÓN: CRIPTO -> BOLSA"):
+            # 1. Vende en Bitso
+            res_b = trade_bitso("btc_mxn", "sell", 30) # Ejemplo $30 MXN
+            # 2. Compra en Alpaca (Simulado el paso de dinero)
+            res_a = trade_alpaca("NVDA", 1.75) # Aprox $30 MXN en USD
+            st.json({"Bitso": res_b, "Alpaca": res_a})
 
-else:
-    st.info("⚖️ Manteniendo posiciones actuales. Esperando desequilibrio de mercado.")
+with col_r:
+    st.write("### 📈 Lado Bolsa")
+    # Tendencia de NVIDIA
+    nvda_data['sma'] = nvda_data['Close'].rolling(20).mean()
+    if nvda_p > nvda_data['sma'].iloc[-1]:
+        st.write("Estado: **TENDENCIA ALCISTA EN NVDA** 🚀")
+    else:
+        st.write("Estado: **MERCADO LENTO** ⚖️")
 
-# --- 5. VISUALIZACIÓN DE PROGRESO 10K ---
-# Sumamos el valor de ambos mundos
-total_usd = (btc_price / 17.10) + nvda_price # Simplificado
-progreso = (total_usd / 10000) * 100
-st.write(f"### Meta $10,000 USD: {progreso:.4f}%")
-st.progress(min(progreso/100, 1.0))
+# --- 6. LOGS DE OPERACIÓN ---
+st.write("---")
+st.info(">> Mahora está monitoreando ambos mercados. El rebalanceo protege tus ganancias.")
 
-time.sleep(30)
+time.sleep(15)
 st.rerun()
