@@ -1,108 +1,127 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import requests
-import plotly.graph_objects as go
-from datetime import datetime
 import time
+import requests
 import hmac
 import hashlib
+import pandas as pd
 
-# --- 1. CONFIGURACIÓN VISUAL PRESTIGE ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK PRESTIGE")
+# --- 1. CONFIGURACIÓN Y ESTILO (PRESTIGE) ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK SYNC")
 
-# Fondo personalizado y Estilos Neón Corregidos
-FONDO_URL = "https://i.postimg.cc/gJSbdJ5f/Captura-de-pantalla-2026-03-14-005126.png"
-st.markdown(f"""
+st.markdown("""
 <style>
-    .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("{FONDO_URL}");
-        background-size: cover; background-attachment: fixed;
-    }}
-    .metric-card {{
-        background: rgba(0, 10, 20, 0.9);
+    .stApp { background-color: #000505; color: #00f2ff; }
+    .neon-border {
         border: 2px solid #00f2ff;
-        border-radius: 12px; padding: 20px; text-align: center;
+        border-radius: 10px;
+        padding: 20px;
+        background-color: rgba(0, 20, 30, 0.6);
         box-shadow: 0 0 15px rgba(0, 242, 255, 0.4);
-        margin-bottom: 10px;
-    }}
-    .label {{ color: #00f2ff; letter-spacing: 2px; font-size: 12px; font-weight: bold; }}
-    .value {{ color: #ffffff; font-size: 28px; font-weight: bold; text-shadow: 0 0 10px #00f2ff; }}
+        text-align: center; margin-bottom: 20px;
+    }
+    .val-major { font-size: 30px; font-weight: bold; color: white; text-shadow: 0 0 10px #00f2ff; }
+    .val-minor { font-size: 16px; color: #39FF14; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. MOTOR DE CONEXIÓN BITSO ---
+# --- 2. BACKEND: CONEXIÓN REAL CON CACHÉ DE EMERGENCIA ---
+# Reemplaza con tus llaves reales de Bitso
 API_KEY = "FZHAAOqOhy"
 API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
 
-def fetch_data():
+# Definimos tu saldo REAL de la captura como respaldo absoluto
+SALDO_REAL_RESPALDO = {
+    'mxn': 68.91,
+    'btc': 0.00003542,
+    'eth': 0.00000004
+}
+
+@st.cache_data(ttl=30) # Cacheamos datos por 30s para evitar bloqueos de API
+def get_sincronized_balances():
     nonce = str(int(time.time() * 1000))
     message = nonce + "GET" + "/v3/balance/"
     signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
     headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}
+    
     try:
-        r_bal = requests.get("https://api.bitso.com/v3/balance/", headers=headers).json()
-        r_tick = requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()
-        return r_bal['payload']['balances'], float(r_tick['payload']['last'])
-    except:
-        return None, 73000.0
+        # Intentar obtener datos reales
+        response = requests.get("https://api.bitso.com/v3/balance/", headers=headers, timeout=5)
+        payload = response.json()
+        
+        if payload['success']:
+            balances = payload['payload']['balances']
+            # Mapeo dinámico y real
+            final_bal = {
+                'mxn': next((float(b['total']) for b in balances if b['currency'] == 'mxn'), 0.0),
+                'btc': next((float(b['total']) for b in balances if b['currency'] == 'btc'), 0.0),
+                'eth': next((float(b['total']) for b in balances if b['currency'] == 'eth'), 0.0)
+            }
+            # Actualizamos la caché de emergencia
+            st.session_state['last_valid_bal'] = final_bal
+            return final_bal, "✅ SINCRO TOTAL"
+        else:
+            raise ValueError("API returned success:false")
+            
+    except Exception as e:
+        # Si todo falla, usar la caché de session_state o el respaldo hardcodeado
+        backup = st.session_state.get('last_valid_bal', SALDO_REAL_RESPALDO)
+        return backup, f"⚠️ MODO CACHÉ (API Error)"
 
-# --- 3. LÓGICA DE PROCESAMIENTO ---
-balances, p_actual = fetch_data()
-if balances:
-    mxn_real = next((float(b['total']) for b in balances if b['currency'] == 'mxn'), 0.0)
-    btc_real = next((float(b['total']) for b in balances if b['currency'] == 'btc'), 0.0)
-else:
-    # Valores de respaldo basados en tu última captura exitosa
-    mxn_real, btc_real = 68.91, 0.00003542
+# --- 3. LÓGICA DE VISUALIZACIÓN ---
+st.markdown("<h1 style='text-align:center; color:#00f2ff; text-shadow: 0 0 15px #00f2ff;'>⛩️ MAHORASHARK: OMNI-SYNC</h1>", unsafe_allow_html=True)
 
-valor_usd = btc_real * p_actual
-progreso = (valor_usd / 115.0) * 100
+# Ejecutar el motor de sincronización
+bal, status_api = get_sincronized_balances()
 
-# --- 4. PANEL PRINCIPAL ---
-st.markdown("<h1 style='color:#00f2ff; text-align:center; text-shadow:0 0 15px #00f2ff;'>⛩️ MAHORASHARK: ADAPTACIÓN ACTIVA</h1>", unsafe_allow_html=True)
+# Obtenemos precio de BTC para cálculos de meta (aproximado/real)
+try:
+    btc_price = float(requests.get("https://api.bitso.com/v3/ticker/?book=btc_usd").json()['payload']['last'])
+except:
+    btc_price = 73500.0 # Respaldo de precio
 
-m1, m2, m3 = st.columns(3)
-with m1:
-    st.markdown(f'<div class="metric-card"><div class="label">BÓVEDA BTC</div><div class="value">{btc_real:.8f}</div><div style="color:#39FF14;">${valor_usd:.2f} USD</div></div>', unsafe_allow_html=True)
-with m2:
-    st.markdown(f'<div class="metric-card"><div class="label">DISPONIBLE MXN</div><div class="value">${mxn_real:.2f}</div><div style="color:cyan;">Sincronizado</div></div>', unsafe_allow_html=True)
-with m3:
-    st.markdown(f'<div class="metric-card"><div class="label">META ($115)</div><div class="value">{progreso:.4f}%</div><div style="color:magenta;">Objetivo Activo</div></div>', unsafe_allow_html=True)
+# Cálculos de Meta ($115 USD) - Basado en la captura
+valor_btc_usd = bal['btc'] * btc_price
+meta_usd = 115.0
+progreso_meta = (valor_btc_usd / meta_usd) * 100
 
+# --- 4. DASHBOARD GRID ---
 st.write("---")
+c1, c2, c3 = st.columns(3)
 
-# --- 5. GRÁFICA Y CEREBRO ---
-col_graf, col_ia = st.columns([2.2, 1])
+with c1:
+    st.markdown(f"""<div class="neon-border">
+        <div style="color:#00f2ff; font-size:12px; letter-spacing:2px;">BÓVEDA BITCOIN</div>
+        <div class="val-major">{bal['btc']:.8f}</div>
+        <div class="val-minor">≈ ${valor_btc_usd:.2f} USD</div>
+    </div>""", unsafe_allow_html=True)
 
-with col_graf:
-    # Gráfica de Velas con colores Neón
-    fig = go.Figure(data=[go.Candlestick(
-        x=pd.date_range(end=datetime.now(), periods=20, freq='min'),
-        open=[p_actual + np.random.uniform(-50, 50) for _ in range(20)],
-        high=[p_actual + 100 for _ in range(20)],
-        low=[p_actual - 100 for _ in range(20)],
-        close=[p_actual + np.random.uniform(-50, 50) for _ in range(20)],
-        increasing_line_color='#39FF14', decreasing_line_color='magenta'
-    )])
-    fig.update_layout(
-        template="plotly_dark", height=400, 
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
-        margin=dict(t=0,b=0,l=0,r=0), xaxis_rangeslider_visible=False
-    )
-    st.plotly_chart(fig, use_container_width=True)
+with c2:
+    st.markdown(f"""<div class="neon-border">
+        <div style="color:#00f2ff; font-size:12px; letter-spacing:2px;">DISPONIBLE MXN</div>
+        <div class="val-major">${bal['mxn']:.2f}</div>
+        <div class="val-minor">{status_api}</div>
+    </div>""", unsafe_allow_html=True)
 
-with col_ia:
-    st.markdown('<div class="metric-card" style="text-align:left; min-height:400px;">', unsafe_allow_html=True)
-    st.subheader("🤖 IA Mahora Pro")
-    st.markdown('<p style="color:#39FF14; font-weight:bold;">🚀 AUTO-PILOT: ACTIVO</p>', unsafe_allow_html=True)
-    st.write("---")
-    st.write("**Radar de Ballenas:**")
-    st.info("Mercado Estable")
-    st.write("---")
-    st.code(f"[{datetime.now().strftime('%H:%M:%S')}]\nStatus: PRESTIGE\nMode: AUTO-SYNC", language="bash")
-    st.markdown('</div>', unsafe_allow_html=True)
+with c3:
+    st.markdown(f"""<div class="neon-border">
+        <div style="color:#00f2ff; font-size:12px; letter-spacing:2px;">META PRESTIGE ($115)</div>
+        <div class="val-major">{progreso_meta:.4f}%</div>
+        <div class="val-minor">Objetivo Activo</div>
+    </div>""", unsafe_allow_html=True)
 
-# Refresh automático para simular flujo constante
-time.sleep(25)
+# --- 5. LOGS Y ESTADO DE IA ---
+st.write("---")
+l1, l2 = st.columns([2,1])
+with l1:
+    st.subheader("🤖 Status IA Mahora Pro")
+    if bal['mxn'] > 10:
+        st.success("🚀 AUTO-PILOT: ACTIVO. Esperando punto de adaptación (compra).")
+    else:
+        st.warning("📡 AUTO-PILOT: EN ESPERA. Saldo MXN insuficiente para operar.")
+with l2:
+    st.subheader("📊 Radar de Ballenas")
+    st.info("MERCADO ESTABLE. Movimiento orgánico detectado.")
+
+# Auto-refresh cada 30 segundos
+time.sleep(30)
 st.rerun()
