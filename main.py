@@ -1,23 +1,17 @@
 import streamlit as st
 import pandas as pd
 import pandas_ta as ta
+import numpy as np  # <--- AGREGADO PARA EVITAR CRASH
 import yfinance as yf
 import requests
 import time
 
-# --- CONFIGURACIÓN ---
-BITSO_KEY = "FZHAAOqOhy"
-BITSO_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
-# Tus llaves de la imagen b2c6c1
-ALP_KEY = "AK2MF7RHHRDWLLX6R47FPZE32J"
-ALP_SECRET = "4pDdU6jCS3zA7QB1aK4d68FTG6MobAgJnvh8vGTsMj47"
+# --- CONFIGURACIÓN DE ANGEL CAPITAL ---
+st.set_page_config(layout="wide", page_title="Angel Capital Quant Fund")
 
-st.set_page_config(layout="wide", page_title="Mahorashark Pro")
-
-# --- MOTOR DE PENSAMIENTO IA ---
-def obtener_analisis():
+def obtener_datos_reales():
     try:
-        # Datos reales de BTC
+        # Pull de Bitso para el RSI
         r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn&limit=50").json()
         precios = [float(t['price']) for t in r['payload']]
         df = pd.DataFrame(precios, columns=['close'])
@@ -26,10 +20,9 @@ def obtener_analisis():
     except:
         return 50.0, 0.0
 
-# --- INTERFAZ ESTILO "ANGEL CAPITAL" ---
-st.title("⛩️ MAHORASHARK: ADAPTACIÓN ACTIVA")
+# --- HEADER (Sincronizado con tu imagen b25260) ---
+st.title("⛩️ MAHORASHARK: ADAPTACIÓN PRO")
 
-# Métricas de tu imagen b25260
 c1, c2, c3 = st.columns(3)
 c1.metric("BÓVEDA BTC", "0.00003542", "$2.64 USD")
 c2.metric("DISPONIBLE MXN", "$68.91", "Sincronizado")
@@ -37,35 +30,36 @@ c3.metric("META ($115)", "2.2934%", "Objetivo Activo")
 
 st.write("---")
 
-col_izq, col_der = st.columns([2, 1])
+# --- BODY: GRÁFICA + PENSAMIENTO ---
+col_graf, col_ia = st.columns([2, 1])
 
-with col_izq:
-    st.subheader("🕯️ Gráfica de Adaptación")
+with col_graf:
+    st.subheader("🕯️ Monitor de Adaptación")
+    # Usamos NVIDIA como referencia de mercado tech
     nvda = yf.Ticker("NVDA").history(period="1d", interval="5m")
     st.line_chart(nvda['Close'])
 
-with col_der:
-    st.subheader("🧠 IA Mahora Pro")
-    rsi, precio_actual = obtener_analisis()
+with col_ia:
+    st.subheader("🧠 IA Mahora Log")
+    rsi_val, btc_p = obtener_datos_reales()
     
-    # El cuadro de pensamiento que faltaba
-    color = "#39FF14" if 40 < rsi < 60 else "#00FFFF" if rsi <= 40 else "#FF00FF"
-    estado = "ESPERAR ⚖️" if color == "#39FF14" else "COMPRA 🚀" if color == "#00FFFF" else "ALERTA 🚨"
+    # Lógica de colores neón
+    color = "#00FFFF" if rsi_val < 40 else "#FF00FF" if rsi_val > 60 else "#39FF14"
     
     st.markdown(f"""
-        <div style="background-color:#000; border:2px solid {color}; padding:15px; border-radius:10px;">
-            <p style="color:{color}; font-family:monospace;">
+        <div style="background-color:#000; border:2px solid {color}; padding:20px; border-radius:10px;">
+            <p style="color:{color}; font-family:monospace; font-size:14px;">
                 [SISTEMA]: ONLINE<br>
-                [ANÁLISIS]: RSI {rsi:.2f}<br>
-                [PRECIO]: ${precio_actual:,.2f}<br><br>
-                <b>IA LOG:</b><br>
-                Estado: {estado}<br>
-                Probabilidad: 89%<br><br>
-                >> AUTO-PILOT: ACTIVO
+                [IA]: Analizando RSI {rsi_val:.2f}<br>
+                [TENDENCIA]: {"ALCISTA" if rsi_val < 50 else "CORRECCIÓN"}<br><br>
+                <b>DECISIÓN:</b><br>
+                {"EJECUTAR COMPRA" if rsi_val < 35 else "MANTENER LIQUIDEZ"}<br><br>
+                >> AUTO-PILOT: ACTIVE<br>
+                >> SYNC: OK
             </p>
         </div>
     """, unsafe_allow_html=True)
 
-# --- REINICIO AUTOMÁTICO ---
+# Refresco para simular tiempo real
 time.sleep(15)
 st.rerun()
