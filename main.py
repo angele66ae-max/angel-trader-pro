@@ -1,90 +1,83 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
-import pandas_ta as ta
-import requests
-import hmac
-import hashlib
+import yfinance as yf
+from alpaca_trade_api.rest import REST, TimeFrame # Necesitas: pip install alpaca-trade-api
 import time
-import json
 
-# --- 1. CONEXIÓN Y SETTINGS ---
-API_KEY = "FZHAAOqOhy"
-API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
-ACCIONES_REFERENCIA = ["NVDA", "AAPL", "TSLA"] # Las que "mandan" en el mercado
-MONEDAS_BITSO = ["btc_mxn", "sol_mxn", "eth_mxn"]
+# --- 1. CREDENCIALES DE BOLSA (ALPACA) ---
+ALPACA_KEY = "TU_ALPACA_KEY"
+ALPACA_SECRET = "TU_ALPACA_SECRET"
+BASE_URL = "https://paper-api.alpaca.markets" # URL de prueba (dinero virtual)
 
-st.set_page_config(layout="wide", page_title="MAHORA STOCK-SYNC")
+# Conexión con el Broker
+alpaca = REST(ALPACA_KEY, ALPACA_SECRET, BASE_URL, api_version='v2')
 
-# --- 2. MOTOR DE ACCIONES REALES (NYSE/NASDAQ) ---
-def analizar_acciones():
+st.set_page_config(layout="wide", page_title="MAHORA WALL STREET")
+
+# --- 2. MOTOR DE EJECUCIÓN DE ACCIONES ---
+def comprar_accion_real(symbol, qty):
     try:
-        # Usamos NVIDIA como el motor principal de decisión
-        stock = yf.Ticker("NVDA")
-        hist = stock.history(period="1d", interval="1m")
-        if hist.empty: return 0, "CERRADO"
-        
-        precio_actual = hist['Close'].iloc[-1]
-        precio_apertura = hist['Open'].iloc[0]
-        cambio = ((precio_actual - precio_apertura) / precio_apertura) * 100
-        return cambio, precio_actual
-    except:
-        return 0, 0
+        # Orden de mercado: Compra 'qty' acciones de 'symbol'
+        order = alpaca.submit_order(
+            symbol=symbol,
+            qty=qty,
+            side='buy',
+            type='market',
+            time_in_force='gtc'
+        )
+        return order
+    except Exception as e:
+        return f"Error: {e}"
 
-# --- 3. EJECUCIÓN DE ORDEN EN BITSO ---
-def enviar_orden_bitso(book, side, monto_mxn):
-    path = "/v3/orders/"
-    nonce = str(int(time.time() * 1000))
-    payload = {
-        "book": book, 
-        "side": side, 
-        "type": "market", 
-        "minor": f"{monto_mxn:.2f}"
-    }
-    json_payload = json.dumps(payload)
-    message = nonce + "POST" + path + json_payload
-    signature = hmac.new(API_SECRET.encode(), message.encode(), hashlib.sha256).hexdigest()
-    
-    headers = {
-        'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}',
-        'Content-Type': 'application/json'
-    }
-    res = requests.post(f"https://api.bitso.com{path}", headers=headers, data=json_payload)
-    return res.json()
+# --- 3. DASHBOARD DE LA BOLSA ---
+st.title("⛩️ MAHORASHARK: STOCK MARKET ADAPTATION")
 
-# --- 4. INTERFAZ Y ESTRATEGIA ---
-st.title("⛩️ MAHORASHARK: STOCK-SYNC ADAPTATION")
+# Seleccionamos las acciones "Top" para los 10k
+ticker_buscado = st.selectbox("ACTIVO A OPERAR", ["NVDA", "TSLA", "AAPL", "AMZN", "MSFT"])
 
-cambio_stock, precio_nvda = analizar_acciones()
+# Datos en tiempo real de Yahoo Finance
+data = yf.Ticker(ticker_buscado).history(period="1d", interval="1m")
+precio_actual = data['Close'].iloc[-1]
 
 c1, c2, c3 = st.columns(3)
-c1.metric("NVIDIA (NVDA)", f"${precio_nvda:.2f}", f"{cambio_stock:.2f}%")
-c2.metric("CAPITAL", "$68.91 MXN")
-c3.info("ESTADO: Sincronizando Wall Street con Bitso")
+c1.metric("ACCIÓN", ticker_buscado)
+c2.metric("PRECIO ACTUAL", f"${precio_actual:.2f} USD")
+c3.metric("ESTADO BOLSA", "OPEN" if 14 <= time.localtime().tm_hour <= 21 else "CLOSED")
 
 st.write("---")
 
-# --- 5. EL DISPARADOR (ESTRATEGIA OMNI) ---
-# Si las acciones tecnológicas suben más de 0.2%, compramos Cripto
-if cambio_stock > 0.20:
-    st.success(f"🚀 SEÑAL ALCISTA EN ACCIONES ({cambio_stock:.2f}%)")
+# --- 4. LÓGICA DE TRADING AUTOMÁTICO ---
+st.subheader("🧠 Estrategia Mahora Pro: Cruce de Tendencia")
+
+# Calculamos medias móviles simples (SMA)
+data['SMA_20'] = data['Close'].rolling(window=20).mean()
+sma_now = data['SMA_20'].iloc[-1]
+
+st.line_chart(data[['Close', 'SMA_20']])
+
+# --- DISPARADOR DE COMPRA ---
+# Si el precio cruza hacia arriba la media de 20 periodos -> COMPRA
+if precio_actual > sma_now:
+    st.success(f"📈 TENDENCIA ALCISTA DETECTADA EN {ticker_buscado}")
     
-    # Decisión de la IA: Comprar SOL porque es la que más sigue a las acciones tech
-    if st.session_state.get('ultimo_trade_omni', 0) < time.time() - 300: # 5 min de respiro
-        monto = 25.00 # Vamos a usar $25 de tus $68 para probar
-        resultado = enviar_orden_bitso("sol_mxn", "buy", monto)
-        st.write("### 📜 RESULTADO DE LA ORDEN:")
-        st.json(resultado)
-        st.session_state['ultimo_trade_omni'] = time.time()
-    else:
-        st.write(">> Esperando ventana de tiempo para no sobreoperar...")
+    if st.button(f"🚀 EJECUTAR COMPRA REAL DE {ticker_buscado}"):
+        # Con Alpaca puedes comprar fracciones, ej: 0.1 de una acción
+        res = comprar_accion_real(ticker_buscado, 1) 
+        st.json(res)
 else:
-    st.warning("⚖️ MERCADO DE ACCIONES LATERAL O BAJISTA - Esperando oportunidad.")
+    st.warning("⚖️ ESPERANDO SEÑAL DE ENTRADA EN LA BOLSA")
 
-# Gráfico de la acción para que veas qué está viendo el bot
-st.write("### 📈 Monitor Real: NVDA (Referencia para Cripto)")
-df_grafica = yf.download("NVDA", period="1d", interval="5m")
-st.line_chart(df_grafica['Close'])
+# --- 5. TU PORTAFOLIO REAL ---
+st.write("### 💼 Tu Portafolio en Wall Street")
+try:
+    positions = alpaca.list_positions()
+    if positions:
+        for pos in positions:
+            st.write(f"**{pos.symbol}**: {pos.qty} acciones | Ganancia: ${pos.unrealized_pl} USD")
+    else:
+        st.write("No tienes posiciones abiertas todavía.")
+except:
+    st.write("Conecta tus API Keys de Alpaca para ver tu portafolio.")
 
-time.sleep(20)
+time.sleep(30)
 st.rerun()
