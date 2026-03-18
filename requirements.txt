@@ -1,4 +1,7 @@
 streamlit
 pandas
-plotly
+pandas_ta
 requests
+yfinance
+alpaca-trade-api
+numpy
