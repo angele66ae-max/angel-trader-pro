@@ -10,102 +10,72 @@ import json
 import yfinance as yf
 from alpaca_trade_api.rest import REST
 
-# --- 1. CONEXIÓN DE PODER (Sincronizado con tus capturas) ---
+# --- 1. CONFIGURACIÓN DE PODER ---
 BITSO_KEY = "FZHAAOqOhy"
 BITSO_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
-
-# Credenciales de tu imagen b2c6c1
 ALP_KEY = "AK2MF7RHHRDWLLX6R47FPZE32J"
 ALP_SECRET = "4pDdU6jCS3zA7QB1aK4d68FTG6MobAgJnvh8vGTsMj47"
-# Cambiamos a la URL de LIVE para dinero real (o mantén paper para pruebas finales)
-BASE_URL = "https://paper-api.alpaca.markets" 
-alpaca = REST(ALP_KEY, ALP_SECRET, BASE_URL)
+alpaca = REST(ALP_KEY, ALP_SECRET, "https://paper-api.alpaca.markets")
 
 st.set_page_config(layout="wide", page_title="Angel Capital Quant Fund")
 
-# --- 2. MOTOR DE EJECUCIÓN REAL ---
-def enviar_orden_bitso(book, side, monto_mxn):
-    path = "/v3/orders/"
-    nonce = str(int(time.time() * 1000))
-    payload = {"book": book, "side": side, "type": "market", "minor": f"{monto_mxn:.2f}"}
-    json_payload = json.dumps(payload)
-    sig = hmac.new(BITSO_SECRET.encode(), (nonce + "POST" + path + json_payload).encode(), hashlib.sha256).hexdigest()
-    headers = {'Authorization': f'Bitso {BITSO_KEY}:{nonce}:{sig}', 'Content-Type': 'application/json'}
-    try:
-        r = requests.post(f"https://api.bitso.com{path}", headers=headers, data=json_payload)
-        return r.json()
-    except Exception as e: return {"success": False, "error": str(e)}
-
+# --- 2. FUNCIONES DE EJECUCIÓN ---
 def get_real_balance():
     nonce = str(int(time.time() * 1000))
     sig = hmac.new(BITSO_SECRET.encode(), (nonce + "GET" + "/v3/balance/").encode(), hashlib.sha256).hexdigest()
     headers = {'Authorization': f'Bitso {BITSO_KEY}:{nonce}:{sig}'}
-    r = requests.get("https://api.bitso.com/v3/balance/", headers=headers).json()
-    return {b['currency'].upper(): float(b['total']) for b in r['payload']['balances']}
+    try:
+        r = requests.get("https://api.bitso.com/v3/balance/", headers=headers).json()
+        return {b['currency'].upper(): float(b['total']) for b in r['payload']['balances']}
+    except: return {"MXN": 0.0}
 
-# --- 3. DASHBOARD "PRESTIGE" ---
-st.title("⛩️ MAHORASHARK: REAL MONEY MODE")
+# --- 3. EL CEREBRO DE LA IA (RAZONAMIENTO) ---
+def pensamiento_ia(rsi, precio, tendencia_wall_street, saldo_mxn):
+    razonamiento = []
+    accion_sugerida = "ESPERAR ⚖️"
+    color = "#39FF14" # Neon Green
+
+    if rsi < 35:
+        razonamiento.append("• El RSI está en zona de sobreventa. El mercado está 'barato' técnicamente.")
+    elif rsi > 65:
+        razonamiento.append("• El RSI indica sobrecompra. Riesgo de corrección inminente.")
+    
+    if tendencia_wall_street > 0.5:
+        razonamiento.append("• Wall Street (NVDA) tiene fuerza alcista. Hay confianza en el sector tech.")
+    else:
+        razonamiento.append("• Mercado tradicional lento. La liquidez podría estar estancada.")
+
+    if saldo_mxn < 50:
+        razonamiento.append("• Alerta: Saldo bajo ($" + str(saldo_mxn) + "). Operaciones limitadas.")
+
+    # Decisión Final
+    if rsi < 35 and tendencia_wall_street > 0:
+        accion_sugerida = "COMPRA AGRESIVA 🚀"
+        color = "#00FFFF" # Cyan
+    elif rsi > 70 or (tendencia_wall_street < -1):
+        accion_sugerida = "VENTA DE PÁNICO / PROTECCIÓN 🚨"
+        color = "#FF00FF" # Magenta
+    
+    return razonamiento, accion_sugerida, color
+
+# --- 4. INTERFAZ "PRESTIGE" ---
+st.title("⛩️ MAHORASHARK: AI COGNITIVE TRADING")
 
 balances = get_real_balance()
 mxn_actual = balances.get('MXN', 0.0)
 
-c1, c2, c3 = st.columns(3)
-c1.metric("SALDO REAL BITSO", f"${mxn_actual:,.2f} MXN")
-c2.metric("SISTEMA", "ADAPTACIÓN ACTIVA", delta="LIVE")
-c3.metric("META", "$10,000 USD", delta=f"{(mxn_actual/17.10):.2f} USD")
+# Datos de Mercado
+r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn&limit=100").json()
+precios = [float(t['price']) for t in r['payload']]
+rsi_val = ta.rsi(pd.Series(precios), length=14).iloc[-1]
+nvda = yf.Ticker("NVDA").history(period="1d", interval="5m")
+cambio_nvda = ((nvda['Close'].iloc[-1] - nvda['Open'].iloc[0]) / nvda['Open'].iloc[0]) * 100
 
-# --- 4. CEREBRO DE TRADING (Venta de Pánico + Compra) ---
-st.write("---")
-libro = "btc_mxn"
-# Obtenemos datos para el análisis
-r = requests.get(f"https://api.bitso.com/v3/trades/?book={libro}&limit=100").json()
-prices = [float(t['price']) for t in r['payload']]
-df = pd.DataFrame(prices, columns=['close'])
-df['rsi'] = ta.rsi(df['close'], length=14)
-rsi_now = df['rsi'].iloc[-1]
-precio_now = prices[0]
+# --- SECCIÓN: PENSAMIENTO DE LA IA ---
+st.subheader("🧠 CÓRTEX CEREBRAL: ANÁLISIS EN TIEMPO REAL")
+logs, decision, neon_color = pensamiento_ia(rsi_val, precios[0], cambio_nvda, mxn_actual)
 
-# --- LÓGICA DE PROTECCIÓN (STOP LOSS) ---
-# Si el precio cae 5% de tu última compra, el bot vende todo.
-if "precio_compra" not in st.session_state:
-    st.session_state.precio_compra = precio_now
-
-stop_loss = st.session_state.precio_compra * 0.95 
-
-st.subheader(f"🛡️ Protección de Capital ({libro.upper()})")
-col_p1, col_p2 = st.columns(2)
-col_p1.write(f"Precio Actual: **${precio_now:,.2f}**")
-col_p2.write(f"Nivel de Venta de Pánico: **${stop_loss:,.2f}**")
-
-# --- EJECUCIÓN AUTOMÁTICA ---
-if precio_now <= stop_loss:
-    st.error("🚨 ¡VENTA DE PÁNICO ACTIVADA! Protegiendo capital...")
-    # Lógica para vender lo que tengas de BTC
-    btc_disponible = balances.get('BTC', 0.0)
-    if btc_disponible > 0.00001:
-        res = enviar_orden_bitso(libro, "sell", btc_disponible * precio_now)
-        st.json(res)
-
-elif rsi_now < 30 and mxn_actual > 50:
-    st.success("🟢 SEÑAL DE COMPRA: El RSI está bajo, oportunidad detectada.")
-    if st.button("Ejecutar Compra Real"):
-        res = enviar_orden_bitso(libro, "buy", mxn_actual * 0.5) # Usa el 50%
-        st.session_state.precio_compra = precio_now
-        st.json(res)
-
-# --- 5. PUENTE A LA BOLSA (ALPACA) ---
-st.write("---")
-st.subheader("📈 Wall Street Bridge (NVIDIA)")
-nvda = yf.Ticker("NVDA").history(period="1d", interval="1m")
-st.line_chart(nvda['Close'])
-
-if st.button("Comprar Fracción de Acción (Real)"):
-    try:
-        # Esto compra $5 USD de NVIDIA usando tus llaves de Alpaca
-        res_alpaca = alpaca.submit_order(symbol="NVDA", notional=5, side='buy', type='market', time_in_force='day')
-        st.success(f"Orden de Bolsa enviada: {res_alpaca.id}")
-    except Exception as e:
-        st.error(f"Error en Alpaca: {e}")
-
-time.sleep(15)
-st.rerun()
+with st.container():
+    st.markdown(f"""
+    <div style="background-color:#000; border:2px solid {neon_color}; padding:20px; border-radius:10px;">
+        <h3 style="color:{neon_color
