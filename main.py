@@ -1,13 +1,13 @@
 import streamlit as st
 import requests
 import pandas as pd
-import numpy as np
+import time
 from datetime import datetime
 
 # --- CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(layout="wide", page_title="MahoraShark: Prestige Center")
+st.set_page_config(layout="wide", page_title="MahoraShark: Prestige Center", page_icon="🦈")
 
-# --- ESTILO CSS CUSTOM ---
+# --- ESTILO CSS CYBERPUNK ---
 st.markdown("""
     <style>
     .stApp { background-color: #050a0e; color: white; }
@@ -19,56 +19,55 @@ st.markdown("""
         box-shadow: 0 0 15px #00f2ff33;
     }
     .metric-title { color: #ffffff; font-size: 11px; font-weight: bold; text-transform: uppercase; }
-    .metric-value { color: #00f2ff; font-size: 26px; font-weight: bold; text-shadow: 0 0 8px #00f2ff; }
-    .coin-title { font-size: 14px; font-weight: bold; margin-top: 10px; }
-    .coin-value { font-size: 24px; color: #ff00ff; }
+    .metric-value { color: #00f2ff; font-size: 24px; font-weight: bold; text-shadow: 0 0 8px #00f2ff; }
+    .ia-log {
+        background-color: #000;
+        border: 1px solid #ff00ff;
+        border-radius: 5px;
+        padding: 10px;
+        font-family: 'Courier New', monospace;
+        color: #39FF14;
+        font-size: 13px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- LÓGICA DE DATOS ---
-def obtener_bitso():
+# --- MOTOR DE DATOS REALES (BITSO) ---
+def obtener_datos_ohlc():
     try:
-        r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
-        return float(r['payload']['last'])
-    except: return 0.0
+        # Obtenemos los últimos trades para simular velas (OHLC real requiere API Key o librería avanzada)
+        # Usamos el ticker para el precio actual y trades para tendencia
+        url = "https://api.bitso.com/v3/trades/?book=btc_mxn"
+        r = requests.get(url).json()
+        df = pd.DataFrame(r['payload'])
+        df['price'] = df['price'].astype(float)
+        return df
+    except: return pd.DataFrame()
 
-precio_btc = obtener_bitso()
-saldo_mxn = 47.12
-meta_10k = 10000.0
-progreso_porcentaje = (saldo_mxn / meta_10k) * 100
+def calcular_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
+# --- PROCESAMIENTO ---
+data = obtener_datos_ohlc()
+precio_actual = data['price'].iloc[0] if not data.empty else 0.0
+rsi_actual = calcular_rsi(data['price']).iloc[-1] if not data.empty else 50.0
+sma_7 = data['price'].rolling(window=7).mean().iloc[-1] if not data.empty else precio_actual
+
+# Lógica de Decisión
+decision = "⚖️ ESPERAR"
+if rsi_actual < 35: decision = "🟢 COMPRA ESTRATÉGICA"
+elif rsi_actual > 65: decision = "🔴 VENTA / STOP LOSS"
 
 # --- INTERFAZ ---
 st.title("⛩️ MAHORASHARK: PRESTIGE CENTER")
 
-# Fila Superior de Métricas
+# 📊 1. PANEL SUPERIOR
 c1, c2, c3, c4 = st.columns(4)
 with c1:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">BTC/MXN BITSO</div><div class="metric-value">${precio_btc:,.0f}</div></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="metric-card"><div class="metric-title">BTC/MXN REAL</div><div class="metric-value">${precio_actual:,.1f}</div></div>', unsafe_allow_html=True)
 with c2:
-    st.markdown('<div class="metric-card"><div class="metric-title">BALANCE REAL</div><div class="metric-value" style="color:#ff00ff">$2.81</div></div>', unsafe_allow_html=True)
-with c3:
-    st.markdown('<div class="metric-card"><div class="metric-title">GANANCIA LÍQUIDA</div><div class="metric-value" style="color:#39FF14">+$0.01520</div></div>', unsafe_allow_html=True)
-with c4:
-    st.markdown(f'<div class="metric-card"><div class="metric-title">META 10K</div><div class="metric-value">{progreso_porcentaje:.4f}%</div></div>', unsafe_allow_html=True)
-
-st.write("---")
-
-# Cuerpo Principal
-col_info, col_chart, col_ia = st.columns([1, 2, 1])
-
-with col_info:
-    st.subheader("Tu Cuenta")
-    st.write("**Bitcoin (BTC)** \n ### 0.000039")
-    st.write("**Ethereum (ETH)** \n ### 0.000000")
-    st.write("**Pesos (MXN)** \n ### $47.12")
-    st.write("**Dólares (USD)** \n ### $2.81")
-
-with col_chart:
-    st.subheader("Gráfica de Velas Japonesas (Profesional)")
-    # Simulamos datos para la gráfica visual de velas
-    chart_data = pd.DataFrame(np.random.randn(30, 2), columns=['Cian', 'Magenta'])
-    st.line_chart(chart_data)
-
-with col_ia:
-    st.subheader("Cerebro Mahora")
-    st.markdown(f'<div style="height:250px; border:2px solid #00f2ff; border-radius:10px; padding:15px; background:black; font-family:monospace; color:#00f2ff;">[SISTEMA]: ACTIVO<br>[IA]: Analizando...<br>[META]: $10,000.00</div>', unsafe_allow_html=True)
+    st.markdown('<div class="metric-card"><div class="metric-title">BALANCE USD</div><div class="metric-value" style="color:#ff00ff
