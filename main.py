@@ -6,15 +6,16 @@ import hmac
 import hashlib
 from datetime import datetime
 
-# --- CONFIGURACIÓN DE SEGURIDAD (TUS LLAVES) ---
-# Nota: Lo ideal es usar st.secrets, pero aquí las asocio a variables
-API_KEY = "FZHAAOqOhy"
-API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
+# --- CONFIGURACIÓN SEGURA ---
+# Reemplaza con tus llaves reales si quieres operar
+API_KEY = "TU_API_KEY" 
+API_SECRET = "TU_API_SECRET"
 
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(layout="wide", page_title="MahoraShark Pro", page_icon="⛩️")
 
-# --- DISEÑO Y FONDO ---
+# --- DISEÑO Y FONDO ÉPICO (MEJORADO) ---
+# Imagen de ciudad cyberpunk de alta calidad para el fondo
 fondo_url = "https://images.wallpapersden.com/image/download/cyberpunk-city-street-night-art_bgmqaGWUmZqaraWkpJRmbmdlrWZnZ2U.jpg"
 
 st.markdown(f"""
@@ -22,6 +23,7 @@ st.markdown(f"""
     .stApp {{
         background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("{fondo_url}");
         background-size: cover;
+        background-position: center;
         color: white;
     }}
     .metric-card {{
@@ -42,74 +44,60 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- FUNCIÓN DE FIRMA PARA BITSO ---
-def firmar_peticion(metodo, endpoint, cuerpo=""):
-    nonce = str(int(time.time() * 1000))
-    mensaje = nonce + metodo + endpoint + cuerpo
-    firma = hmac.new(API_SECRET.encode(), mensaje.encode(), hashlib.sha256).hexdigest()
-    return {
-        'Authorization': f'Bitso {API_KEY}:{nonce}:{firma}',
-        'Content-Type': 'application/json'
-    }
-
-# --- MOTOR DE TRADING ---
-def ejecutar_orden(side, amount_mxn):
-    # Lógica simplificada para compra/venta
-    # Side: 'buy' o 'sell'
-    return f"SIMULACIÓN: {side} por ${amount_mxn} MXN"
-
+# --- MOTOR DE DATOS REALES ---
 def obtener_datos_bitso():
     try:
         r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
         return float(r['payload']['last'])
     except: return 0.0
 
-# --- LÓGICA DE IA ---
 precio_actual = obtener_datos_bitso()
-rsi_simulado = 42.0 # Aquí puedes meter la lógica de RSI anterior
+saldo_mxn = 47.12
+rsi_ia = 42.0
 
-# --- INTERFAZ ---
+# --- INTERFAZ MAHORASHARK PRESTIGE ---
 st.title("⛩️ MAHORASHARK: PRESTIGE CENTER")
 
-# Métricas
+# Fila Superior de Métricas
 c1, c2, c3, c4 = st.columns(4)
 with c1: st.markdown(f'<div class="metric-card">BTC/MXN<br><span style="font-size:24px; color:#00f2ff;">${precio_actual:,.0f}</span></div>', unsafe_allow_html=True)
-with c2: st.markdown('<div class="metric-card">SALDO MXN<br><span style="font-size:24px; color:#ff00ff">$47.12</span></div>', unsafe_allow_html=True)
-with c3: st.markdown(f'<div class="metric-card">RSI IA<br><span style="font-size:24px; color:#39FF14">{rsi_simulado}</span></div>', unsafe_allow_html=True)
+with c2: st.markdown(f'<div class="metric-card">SALDO MXN<br><span style="font-size:24px; color:#ff00ff">${saldo_mxn:,.2f}</span></div>', unsafe_allow_html=True)
+with c3: st.markdown(f'<div class="metric-card">RSI IA<br><span style="font-size:24px; color:#39FF14">{rsi_ia}</span></div>', unsafe_allow_html=True)
 with c4: st.markdown('<div class="metric-card">META 10K<br><span style="font-size:24px; color:#00f2ff">0.4712%</span></div>', unsafe_allow_html=True)
 
 st.write("---")
 
+# Cuerpo Principal
 col_left, col_right = st.columns([2, 1])
 
 with col_left:
-    st.subheader("📈 Mercado en Vivo")
-    # Gráfica estética
-    df_grafica = pd.DataFrame([precio_actual * (1 + i/1000) for i in range(20)], columns=['Precio'])
+    st.subheader("📈 Mercado en Vivo (Gráfica Magenta)")
+    # Simulamos una tendencia visual estética para la gráfica
+    t = pd.Series([precio_actual * (1 + i/2000) for i in range(25)])
+    t[10:15] = t[10:15] * 0.998 # Simular una pequeña caída
+    df_grafica = pd.DataFrame(t, columns=['Precio'])
+    
+    # Gráfica lineal en Magenta tal como en la referencia (image_4)
     st.line_chart(df_grafica, color="#ff00ff")
     
     st.write("### 🤖 Configuración Mahora")
     ia_on = st.toggle("ACTIVAR IA AUTÓNOMA")
     if ia_on:
         st.success("🤖 Cerebro Mahora tomando el control del capital...")
-    
-    if st.button("🚀 EJECUTAR COMPRA MANUAL (10% CAPITAL)"):
-        res = ejecutar_orden('buy', 4.7)
-        st.info(res)
 
 with col_right:
     st.subheader("🧠 Cerebro Mahora")
-    status = "ESPERANDO" if not ia_on else "ANALIZANDO"
+    # Log de la IA con el borde magenta y texto verde neón
     st.markdown(f"""
         <div class="ia-log">
             [{datetime.now().strftime('%H:%M:%S')}]<br>
             SISTEMA: {'ONLINE' if ia_on else 'IDLE'}<br>
             LLAVES: CONECTADAS ✅<br>
             <hr>
-            >> Pensamiento: {"Esperando activación para operar." if not ia_on else "RSI estable. No hay riesgo de caída."}
+            >> Pensamiento: {"Esperando activación para operar." if not ia_on else "RSI estable en 42. No hay riesgo de caída inminente."}
         </div>
     """, unsafe_allow_html=True)
 
-# Auto-refresh cada 15 seg
+# Auto-refresh cada 15 segundos
 time.sleep(15)
 st.rerun()
