@@ -1,1 +1,6 @@
-3.11
+streamlit
+pandas
+pandas-ta
+yfinance
+numpy
+requests
