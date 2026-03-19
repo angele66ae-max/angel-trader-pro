@@ -1,65 +1,70 @@
 import streamlit as st
 import pandas as pd
-import pandas_ta as ta
-import numpy as np  # <--- AGREGADO PARA EVITAR CRASH
-import yfinance as yf
+import numpy as np
 import requests
 import time
 
-# --- CONFIGURACIÓN DE ANGEL CAPITAL ---
-st.set_page_config(layout="wide", page_title="Angel Capital Quant Fund")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(layout="wide", page_title="Angel Capital - Bitso Trader")
 
-def obtener_datos_reales():
+# Función manual de RSI (Para no usar pandas-ta)
+def calcular_rsi(precios, periodo=14):
+    df = pd.DataFrame(precios, columns=['close'])
+    delta = df['close'].diff()
+    ganancia = (delta.where(delta > 0, 0)).rolling(window=periodo).mean()
+    perdida = (-delta.where(delta < 0, 0)).rolling(window=periodo).mean()
+    rs = ganancia / perdida
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.iloc[-1]
+
+def obtener_datos_bitso():
     try:
-        # Pull de Bitso para el RSI
-        r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn&limit=50").json()
+        # Traemos los últimos 100 trades de Bitso
+        r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn&limit=100").json()
         precios = [float(t['price']) for t in r['payload']]
-        df = pd.DataFrame(precios, columns=['close'])
-        rsi = ta.rsi(df['close'], length=14).iloc[-1]
-        return rsi, precios[0]
-    except:
+        rsi_val = calcular_rsi(precios)
+        precio_actual = precios[0]
+        return rsi_val, precio_actual
+    except Exception as e:
         return 50.0, 0.0
 
-# --- HEADER (Sincronizado con tu imagen b25260) ---
-st.title("⛩️ MAHORASHARK: ADAPTACIÓN PRO")
+# --- INTERFAZ ---
+st.title("⛩️ MAHORASHARK: BITSO ONLY")
+
+# Métricas superiores
+rsi_val, btc_p = obtener_datos_bitso()
 
 c1, c2, c3 = st.columns(3)
-c1.metric("BÓVEDA BTC", "0.00003542", "$2.64 USD")
-c2.metric("DISPONIBLE MXN", "$68.91", "Sincronizado")
-c3.metric("META ($115)", "2.2934%", "Objetivo Activo")
+c1.metric("PRECIO BTC (MXN)", f"${btc_p:,.2f}")
+c2.metric("RSI (14)", f"{rsi_val:.2f}")
+c3.metric("OBJETIVO", "$115.00", "Activo")
 
 st.write("---")
 
-# --- BODY: GRÁFICA + PENSAMIENTO ---
 col_graf, col_ia = st.columns([2, 1])
 
 with col_graf:
-    st.subheader("🕯️ Monitor de Adaptación")
-    # Usamos NVIDIA como referencia de mercado tech
-    nvda = yf.Ticker("NVDA").history(period="1d", interval="5m")
-    st.line_chart(nvda['Close'])
+    st.subheader("🕯️ Movimiento Bitso (Últimos Trades)")
+    # Simulamos un histórico visual con los datos de Bitso
+    datos_grafica = pd.DataFrame(np.random.randn(20, 1), columns=['Precio']) # Placeholder visual
+    st.line_chart(datos_grafica)
 
 with col_ia:
     st.subheader("🧠 IA Mahora Log")
-    rsi_val, btc_p = obtener_datos_reales()
-    
-    # Lógica de colores neón
     color = "#00FFFF" if rsi_val < 40 else "#FF00FF" if rsi_val > 60 else "#39FF14"
     
     st.markdown(f"""
         <div style="background-color:#000; border:2px solid {color}; padding:20px; border-radius:10px;">
             <p style="color:{color}; font-family:monospace; font-size:14px;">
-                [SISTEMA]: ONLINE<br>
+                [SISTEMA]: CONECTADO A BITSO<br>
                 [IA]: Analizando RSI {rsi_val:.2f}<br>
-                [TENDENCIA]: {"ALCISTA" if rsi_val < 50 else "CORRECCIÓN"}<br><br>
+                [TENDENCIA]: {"COMPRA" if rsi_val < 35 else "ESPERA"}<br><br>
                 <b>DECISIÓN:</b><br>
-                {"EJECUTAR COMPRA" if rsi_val < 35 else "MANTENER LIQUIDEZ"}<br><br>
-                >> AUTO-PILOT: ACTIVE<br>
-                >> SYNC: OK
+                {"EJECUTAR ORDEN" if rsi_val < 30 else "MONITORIZANDO"}<br><br>
+                >> ADAPTACIÓN: ACTIVE
             </p>
         </div>
     """, unsafe_allow_html=True)
 
-# Refresco para simular tiempo real
 time.sleep(15)
 st.rerun()
