@@ -4,20 +4,18 @@ import pandas as pd
 import time
 from datetime import datetime
 
-# --- DATOS DE ACCESO ---
-API_KEY = "FZHAAOqOhy"
-API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
-
 # --- CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(layout="wide", page_title="MahoraShark Pro", page_icon="⛩️")
 
-# --- DISEÑO Y FONDO (LÍNEA 18 FIX) ---
-fondo_url = "https://images.wallpapersden.com/image/download/cyberpunk-city-street-night-art_bgmqaGWUmZqaraWkpJRmbmdlrWZnZ2U.jpg"
+# --- DISEÑO Y FONDO EXACTO (POSTIMG FIX) ---
+# Usamos la URL directa de la imagen que me pasaste
+fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura_de_pantalla_2026_03_14_005126.png"
 
 st.markdown(f"""
     <style>
     .stApp {{
-        background: linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.85)), url("{fondo_url}");
+        /* Fondo con degradado oscuro para legibilidad + imagen cósmica */
+        background: linear-gradient(rgba(5, 10, 14, 0.85), rgba(5, 10, 14, 0.95)), url("{fondo_url}");
         background-size: cover;
         background-position: center;
         background-attachment: fixed;
@@ -54,7 +52,7 @@ saldo_mxn = 47.12
 meta_objetivo = 10000.0
 progreso = (saldo_mxn / meta_objetivo) * 100
 
-# --- INTERFAZ ---
+# --- INTERFAZ MAHORASHARK ---
 st.title("⛩️ MAHORASHARK: PRESTIGE CENTER")
 
 # Fila Superior: Métricas Neón
@@ -73,6 +71,7 @@ with col_chart:
     st.subheader("📈 Tendencia de Mercado (Magenta Line)")
     # Datos simulando la gráfica magenta de tu referencia
     t_data = pd.DataFrame([precio_actual * (1 + (i-15)/2000) for i in range(40)], columns=['Price'])
+    # Forzamos el color Magenta tal como en la referencia (image_4)
     st.line_chart(t_data, color="#ff00ff")
     
     st.write("### ⚙️ Centro de Control")
