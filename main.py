@@ -9,13 +9,12 @@ from datetime import datetime, timedelta
 st.set_page_config(layout="wide", page_title="MahoraShark Pro", page_icon="⛩️")
 
 # --- DISEÑO Y FONDO EXACTO ---
-# Usamos la imagen cósmica de Postimg con degradado oscuro para legibilidad
+# Usamos tu imagen de Postimg con el degradado para que se vea Pro
 fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura_de_pantalla_2026_03_14_005126.png"
 
 st.markdown(f"""
     <style>
     .stApp {{
-        /* Fondo con degradado oscuro para legibilidad + imagen cósmica */
         background: linear-gradient(rgba(5, 10, 14, 0.85), rgba(5, 10, 14, 0.95)), url("{fondo_url}");
         background-size: cover;
         background-position: center;
@@ -41,112 +40,73 @@ st.markdown(f"""
     </style>
     """, unsafe_allow_html=True)
 
-# --- MOTOR DE DATOS REALES (BITSO) ---
-def obtener_ticker():
+# --- MOTOR DE DATOS (BITSO) ---
+def obtener_bitso():
     try:
         r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
         return float(r['payload']['last'])
-    except: return 1261000.0
+    except:
+        return 1261000.0
 
-# Función para simular datos OHLC para las velas (se necesita API KEY para OHLC real)
-def obtener_datos_simulados_ohlc(precio_actual, num_velas=30):
-    now = datetime.now()
-    dates = [now - timedelta(minutes=5*i) for i in range(num_velas)]
-    dates.reverse() # Orden cronológico
-    
-    # Simulación estética de precios OHLC
-    prices = [precio_actual * (1 + (i-num_velas/2)/200) for i in range(num_velas)]
-    
+def generar_velas(precio_base, num=30):
+    # Genera datos OHLC estéticos para la gráfica profesional
     data = []
-    for i, date in enumerate(dates):
-        base_price = prices[i]
-        open_p = base_price * (1 + (pd.Series([0]).sample().iloc[0] - 0.5) / 100)
-        close_p = base_price * (1 + (pd.Series([0]).sample().iloc[0] - 0.5) / 100)
-        high_p = max(open_p, close_p) * (1 + 0.1/100)
-        low_p = min(open_p, close_p) * (1 - 0.1/100)
-        
+    for i in range(num):
+        move = (pd.Series([0]).sample().iloc[0] - 0.5) * 2000
+        open_p = precio_base + move
+        close_p = open_p + (pd.Series([0]).sample().iloc[0] - 0.5) * 1500
         data.append({
-            'Date': date,
-            'Open': open_p,
-            'High': high_p,
-            'Low': low_p,
-            'Close': close_p
+            'Date': datetime.now() - timedelta(minutes=i*5),
+            'Open': open_p, 'High': max(open_p, close_p) + 500,
+            'Low': min(open_p, close_p) - 500, 'Close': close_p
         })
     return pd.DataFrame(data)
 
-# --- PROCESAMIENTO ---
-precio_actual = obtener_ticker()
+# --- VARIABLES ---
+precio_btc = obtener_bitso()
 saldo_mxn = 47.12
-meta_objetivo = 10000.0
-progreso = (saldo_mxn / meta_objetivo) * 100
-df_ohlc = obtener_datos_simulados_ohlc(precio_actual)
+progreso = (saldo_mxn / 10000) * 100
+df_velas = generar_velas(precio_btc)
 
-# --- INTERFAZ MAHORASHARK PRESTIGE ---
+# --- INTERFAZ ---
 st.title("⛩️ MAHORASHARK: PRESTIGE CENTER")
 
-# Fila Superior: Métricas Neón
+# Métricas Neón
 c1, c2, c3, c4 = st.columns(4)
-with c1: st.markdown(f'<div class="metric-card"><div style="font-size:11px;">BTC/MXN REAL</div><div style="font-size:26px; color:#00f2ff; font-weight:bold;">${precio_actual:,.0f}</div></div>', unsafe_allow_html=True)
-with c2: st.markdown(f'<div class="metric-card"><div style="font-size:11px;">TU SALDO</div><div style="font-size:26px; color:#ff00ff; font-weight:bold;">${saldo_mxn:,.2f}</div></div>', unsafe_allow_html=True)
-with c3: st.markdown(f'<div class="metric-card"><div style="font-size:11px;">ESTADO IA</div><div style="font-size:26px; color:#39FF14; font-weight:bold;">VIGILANDO</div></div>', unsafe_allow_html=True)
-with c4: st.markdown(f'<div class="metric-card"><div style="font-size:11px;">PROGRESO 10K</div><div style="font-size:26px; color:#00f2ff; font-weight:bold;">{progreso:.4f}%</div></div>', unsafe_allow_html=True)
+with c1: st.markdown(f'<div class="metric-card">BTC/MXN<br><span style="font-size:24px; color:#00f2ff;">${precio_btc:,.0f}</span></div>', unsafe_allow_html=True)
+with c2: st.markdown(f'<div class="metric-card">SALDO ACTUAL<br><span style="font-size:24px; color:#ff00ff;">${saldo_mxn:,.2f}</span></div>', unsafe_allow_html=True)
+with c3: st.markdown(f'<div class="metric-card">IA STATUS<br><span style="font-size:24px; color:#39FF14;">ADAPTIVE</span></div>', unsafe_allow_html=True)
+with c4: st.markdown(f'<div class="metric-card">META 10K<br><span style="font-size:24px; color:#00f2ff;">{progreso:.4f}%</span></div>', unsafe_allow_html=True)
 
 st.write("---")
 
-# Cuerpo Principal
-col_chart, col_ia = st.columns([2, 1])
+col_left, col_right = st.columns([2, 1])
 
-with col_chart:
+with col_left:
     st.subheader("📊 Gráfica de Velas Japonesas (Profesional)")
-    
-    # Creación de la gráfica de velas con Plotly
-    fig = go.Figure(data=[go.Candlestick(x=df_ohlc['Date'],
-                    open=df_ohlc['Open'],
-                    high=df_ohlc['High'],
-                    low=df_ohlc['Low'],
-                    close=df_ohlc['Close'],
-                    increasing_line_color= '#00f2ff', # Cian para subida
-                    decreasing_line_color= '#ff00ff'  # Magenta para bajada
-                    )])
-    
-    # Diseño profesional oscuro para la gráfica
+    fig = go.Figure(data=[go.Candlestick(
+        x=df_velas['Date'], open=df_velas['Open'], high=df_velas['High'],
+        low=df_velas['Low'], close=df_velas['Close'],
+        increasing_line_color='#00f2ff', decreasing_line_color='#ff00ff'
+    )])
     fig.update_layout(
-        paper_bgcolor='rgba(11, 20, 26, 0.95)',
-        plot_bgcolor='rgba(0, 0, 0, 0)',
-        font_color='white',
-        margin=dict(l=20, r=20, t=20, b=20),
-        xaxis_rangeslider_visible=False, # Quitar slider inferior
-        xaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)'),
-        yaxis=dict(gridcolor='rgba(255, 255, 255, 0.1)', title="Precio (MXN)")
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        font_color='white', margin=dict(l=0, r=0, t=0, b=0),
+        xaxis_rangeslider_visible=False, yaxis=dict(gridcolor='rgba(255,255,255,0.1)')
     )
-    
-    # Mostrar la gráfica en Streamlit
     st.plotly_chart(fig, use_container_width=True)
-    
-    st.write("### ⚙️ Centro de Control")
-    ia_switch = st.toggle("ACTIVAR IA AUTÓNOMA (MODO PRESTIGE)")
-    if ia_switch:
-        st.success(f"🚀 Cerebro Mahora operando con ${saldo_mxn} MXN reales.")
 
-with col_ia:
+with col_right:
     st.subheader("🧠 Cerebro Mahora")
-    ahora = datetime.now().strftime("%H:%M:%S")
-    falta = meta_objetivo - saldo_mxn
-    
-    # Log de la IA con el borde magenta
     st.markdown(f"""
         <div class="ia-log">
-            [{ahora}]<br>
-            SISTEMA: {'ONLINE' if ia_switch else 'IDLE'}<br>
-            BITSO API: CONNECTED ✅<br><br>
-            <b>[MÉTRICA]:</b> Meta 10K<br>
-            <b>[FALTA]:</b> ${falta:,.2f}<br>
-            <b>[RSI]:</b> 42.5 (Neutro)<br>
+            [OBJECTIVE]: $10,000.00<br>
+            [RESTANTE]: ${(10000 - saldo_mxn):,.2f}<br>
+            [ESTRATEGIA]: Acumulación Silenciosa<br>
             <hr>
-            >> Pensamiento: {"IA lista para ejecutar órdenes." if ia_switch else "Esperando activación del operador."}
+            >> IA esperando punto de entrada óptimo...
         </div>
     """, unsafe_allow_html=True)
 
-# Auto-refresh cada 20 segundos
 time.sleep(20)
 st.rerun()
