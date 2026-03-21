@@ -2,144 +2,106 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.graph_objects as go
-import hmac
-import hashlib
-import time
+from plotly.subplots import make_subplots
+import hmac, hashlib, time, numpy as np
 from datetime import datetime
-import numpy as np
 
-# --- CONFIGURACIÓN DE IDENTIDAD ---
-NOMBRE = "Angel"
-st.set_page_config(layout="wide", page_title=f"MahoraShark Ultra - {NOMBRE}")
+# --- CONFIGURACIÓN ---
+st.set_page_config(layout="wide", page_title="MahoraShark Omni-Quantum")
+API_KEY = st.secrets.get("BITSO_KEY")
+API_SECRET = st.secrets.get("BITSO_SECRET")
+MODO_REAL = True if API_KEY else False
 
-# --- SEGURIDAD BITSO ---
-try:
-    API_KEY = st.secrets["BITSO_KEY"]
-    API_SECRET = st.secrets["BITSO_SECRET"]
-    OPERACION_REAL = True
-except:
-    OPERACION_REAL = False
-
-def firmar(metodo, endpoint, cuerpo=""):
-    nonce = str(int(time.time() * 1000))
-    mensaje = nonce + metodo + endpoint + cuerpo
-    firma = hmac.new(API_SECRET.encode(), mensaje.encode(), hashlib.sha256).hexdigest()
-    return {'Authorization': f'Bitso {API_KEY}:{nonce}:{firma}', 'Content-Type': 'application/json'}
-
-# --- DISEÑO ULTRA PRESTIGE (GOTAS DE AGUA) ---
-# Usamos el fondo cósmico con el efecto de gotas de agua neón
+# --- CSS PRESTIGE (GOTAS DE AGUA + NEÓN) ---
 fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura_de_pantalla_2026_03_14_005126.png"
-
 st.markdown(f"""
     <style>
-    .stApp {{
-        background: linear-gradient(rgba(5, 10, 14, 0.93), rgba(5, 10, 14, 0.98)), url("{fondo_url}");
-        background-size: cover;
-        background-position: center;
-        background-attachment: fixed;
-    }}
-    .metric-card {{
-        background: rgba(11, 20, 26, 0.95);
-        border: 2px solid #00f2ff;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 0 15px rgba(0, 242, 255, 0.2);
-        text-align: center;
-    }}
-    .metric-val {{ font-size: 24px; font-weight: bold; color: #00f2ff; }}
-    .ia-log {{
-        background-color: rgba(0, 0, 0, 0.9);
-        border: 2px solid #ff00ff;
-        border-radius: 10px;
-        padding: 15px;
-        font-family: 'Courier New', monospace;
-        color: #39FF14;
-    }}
+    .stApp {{ background: linear-gradient(rgba(5,10,14,0.95), rgba(5,10,14,0.98)), url("{fondo_url}"); background-size: cover; color: white; }}
+    .metric-card {{ background: rgba(11, 20, 26, 0.9); border: 1px solid #00f2ff; border-radius: 8px; padding: 10px; text-align: center; box-shadow: 0 0 10px #00f2ff33; }}
+    .metric-val {{ font-size: 22px; font-weight: bold; color: #00f2ff; }}
+    .ia-terminal {{ background: rgba(0,0,0,0.8); border-left: 3px solid #ff00ff; padding: 15px; font-family: 'Courier New', monospace; color: #39FF14; font-size: 12px; height: 300px; overflow-y: auto; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- OBTENCIÓN DE DATOS REALES ---
-def obtener_mercado():
-    r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
-    precio = float(r['payload']['last'])
-    # Creamos 40 velas dinámicas para que la gráfica se vea fluida y llena
-    precios = [precio * (1 + np.sin(i/6)*0.002 + np.random.normal(0, 0.001)) for i in range(40)]
-    df = pd.DataFrame({'Close': precios})
-    df['Open'] = df['Close'].shift(1).fillna(precios[0] * 0.999)
+# --- LÓGICA DE DATOS ---
+def get_balance():
+    if not MODO_REAL: return pd.DataFrame([{"Asset": "MXN", "Total": 68.91}, {"Asset": "BTC", "Total": 0.00003542}])
+    nonce = str(int(time.time() * 1000))
+    signature = hmac.new(API_SECRET.encode(), (nonce + "GET" + "/v3/balance/").encode(), hashlib.sha256).hexdigest()
+    r = requests.get("https://api.bitso.com/v3/balance/", headers={'Authorization': f'Bitso {API_KEY}:{nonce}:{signature}'}).json()
+    return pd.DataFrame([{"Asset": b['currency'].upper(), "Total": float(b['total'])} for b in r['payload']['balances'] if float(b['total']) > 0])
+
+def get_market_data():
+    r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()['payload']
+    precio = float(r['last'])
+    # Datos simulados para la gráfica pro
+    df = pd.DataFrame({'Close': [precio * (1 + np.sin(i/5)*0.002) for i in range(50)]})
+    df['Open'] = df['Close'].shift(1).fillna(precio)
     df['High'] = df[['Open', 'Close']].max(axis=1) * 1.001
     df['Low'] = df[['Open', 'Close']].min(axis=1) * 0.999
-    df['Time'] = [datetime.now() - pd.Timedelta(minutes=5*i) for i in range(40)][::-1]
+    df['Vol'] = np.random.randint(100, 1000, 50)
     return precio, df
 
-def obtener_saldo_mxn_real():
-    if not OPERACION_REAL: return 68.91
-    try:
-        headers = firmar("GET", "/v3/balance/")
-        res = requests.get("https://api.bitso.com/v3/balance/", headers=headers).json()
-        for b in res['payload']['balances']:
-            if b['currency'] == 'mxn': return float(b['total'])
-        return 0.0
-    except: return 68.91
+# --- PROCESO ---
+precio, df = get_market_data()
+cartera = get_balance()
+saldo_mxn = cartera[cartera['Asset'] == 'MXN']['Total'].iloc[0] if 'MXN' in cartera['Asset'].values else 0.0
 
-# --- PROCESAMIENTO ---
-precio_btc, df_velas = obtener_mercado()
-saldo_actual = obtener_saldo_mxn_real()
+# --- UI ---
+st.markdown("<h2 style='text-align: center; color: #00f2ff;'>ANGEL'S PRESTIGE CENTER</h2>", unsafe_allow_html=True)
 
-# --- INTERFAZ MAHORASHARK ULTRA ---
-st.title(f"⛩️ MAHORASHARK: ULTRA PRESTIGE terminal")
-
-# Fila Superior: Tarjetas Neón
+# Top Bar
 c1, c2, c3, c4 = st.columns(4)
-with c1: st.markdown(f'<div class="metric-card"><small>BTC/MXN BITSO</small><div class="metric-val">${precio_btc:,.0f}</div></div>', unsafe_allow_html=True)
-with c2: st.markdown(f'<div class="metric-card"><small>SALDO REAL MXN</small><div class="metric-val" style="color:#ff00ff">${saldo_actual:,.2f}</div></div>', unsafe_allow_html=True)
-with c3: st.markdown(f'<div class="metric-card"><small>ESTADO IA</small><div class="metric-val" style="color:#39FF14">ACTIVE</div></div>', unsafe_allow_html=True)
-with c4: 
-    progreso = (saldo_actual / 10000) * 100
-    st.markdown(f'<div class="metric-card"><small>META 10K</small><div class="metric-val">{progreso:.4f}%</div></div>', unsafe_allow_html=True)
+c1.markdown(f'<div class="metric-card"><small>BTC/MXN</small><div class="metric-val">${precio:,.0f}</div></div>', unsafe_allow_html=True)
+c2.markdown(f'<div class="metric-card"><small>MXN BALANCE</small><div class="metric-val" style="color:#ff00ff">${saldo_mxn:,.2f}</div></div>', unsafe_allow_html=True)
+c3.markdown(f'<div class="metric-card"><small>IA STATUS</small><div class="metric-val" style="color:#39FF14">ACTIVATED 🟢</div></div>', unsafe_allow_html=True)
+c4.markdown(f'<div class="metric-card"><small>META 10K PROGRESS</small><div class="metric-val">{(saldo_mxn/10000)*100:.2f}%</div></div>', unsafe_allow_html=True)
 
-st.write("---")
+st.write("")
 
-col_main, col_brain = st.columns([2.5, 1])
+col_left, col_right = st.columns([2.5, 1])
 
-with col_main:
-    # --- LA GRÁFICA MÁS LINDA (ESTILO IMAGEN 1) ---
-    st.subheader("📊 Gráfica de Velas Japonesas Profesionales")
-    # Gráfica Neón con colores sólidos y ultra-limpia
-    fig = go.Figure(data=[go.Candlestick(
-        x=df_velas['Time'], open=df_velas['Open'], high=df_velas['High'],
-        low=df_velas['Low'], close=df_velas['Close'],
-        increasing_line_color='#00f2ff', decreasing_line_color='#ff00ff',
-        increasing_fillcolor='#00f2ff', decreasing_fillcolor='#ff00ff'
-    )])
-    fig.update_layout(
-        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0),
-        yaxis=dict(gridcolor='rgba(255,255,255,0.05)', side='right'),
-        xaxis=dict(gridcolor='rgba(255,255,255,0.05)')
-    )
-    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+with col_left:
+    # GRÁFICA COMBINADA (VELAS + VOLUMEN)
+    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_width=[0.2, 0.7])
+    fig.add_trace(go.Candlestick(open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], 
+                                 increasing_line_color='#00f2ff', decreasing_line_color='#ff00ff'), row=1, col=1)
+    fig.add_trace(go.Bar(y=df['Vol'], marker_color='#39FF14', opacity=0.3), row=2, col=1)
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, 
+                      xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0), font_color="white")
+    st.plotly_chart(fig, use_container_width=True)
 
-with col_brain:
-    st.subheader("🧠 Cerebro Mahora")
-    ahora = datetime.now().strftime("%H:%M:%S")
+    # INDICADOR RSI GAUGE
+    st.write("### INDICADORES CUANTITATIVOS")
+    rsi_val = 42.5 # Valor ejemplo
+    fig_rsi = go.Figure(go.Indicator(
+        mode = "gauge+number", value = rsi_val, title = {'text': "RSI (14)"},
+        gauge = {'axis': {'range': [0, 100]}, 'bar': {'color': "#00f2ff"},
+                 'steps': [{'range': [0, 30], 'color': "#ff00ff"}, {'range': [70, 100], 'color': "#ff00ff"}]}))
+    fig_rsi.update_layout(height=250, paper_bgcolor='rgba(0,0,0,0)', font_color="white", margin=dict(t=0,b=0))
+    st.plotly_chart(fig_rsi, use_container_width=True)
+
+with col_right:
+    # TERMINAL CEREBRO MAHORA
     st.markdown(f"""
-        <div class="ia-log">
-            [{ahora}]<br>
-            SISTEMA: {'ONLINE' if OPERACION_REAL else 'IDLE'}<br>
-            API BITSO: {'CONNECTED ✅' if OPERACION_REAL else 'DISCONNECTED ❌'}<br>
+    <div style="background:#ff00ff22; border:1px solid #ff00ff; border-radius:10px; padding:10px;">
+        <h4 style="margin:0; color:#ff00ff;">🧠 CEREBRO MAHORA v4.0</h4>
+        <div class="ia-terminal">
+            [{datetime.now().strftime("%H:%M:%S")}] >> MERCADO ESTABLE.<br>
+            [{datetime.now().strftime("%H:%M:%S")}] >> RSI EN {rsi_val}. NEUTRO.<br>
+            [{datetime.now().strftime("%H:%M:%S")}] >> HOLDING MXN...<br>
             <hr>
-            >> Pensamiento: {"IA lista para operar con tu saldo real." if OPERACION_REAL else "Esperando conexión para el viaje a Canadá 🇨🇦."}
+            >> PENSAMIENTO:<br>
+            Angel, el mercado muestra baja volatilidad. Sugiero mantener posición para el viaje a Canadá 🇨🇦.
         </div>
+    </div>
     """, unsafe_allow_html=True)
     
-    st.write("### 🛡️ Control de Operaciones")
-    st.toggle("ACTIVAR IA AUTÓNOMA (MODO PRESTIGE)", value=True)
-    if st.button("🚀 EJECUTAR OPERACIÓN REAL CON 20% SALDO"):
-        if OPERACION_REAL:
-            st.toast("Conectando con Bitso API para orden real...")
-        else:
-            st.error("Error: Conecta tus llaves primero.")
+    st.write("### 💰 TUS ACTIVOS")
+    st.table(cartera)
+    
+    if st.button("🚀 EJECUTAR ESCANEO QUANTUM", use_container_width=True):
+        st.toast("Escaneando liquidez en Bitso...")
 
-# Auto-refresh
-time.sleep(15)
+time.sleep(20)
 st.rerun()
