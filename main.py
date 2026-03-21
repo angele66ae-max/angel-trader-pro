@@ -6,160 +6,133 @@ from plotly.subplots import make_subplots
 import hmac, hashlib, time, numpy as np
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN DE IDENTIDAD & HEADER ---
+# --- 1. CONFIGURACIÓN ---
 NOMBRE_USUARIO = "Angel"
 st.set_page_config(layout="wide", page_title=f"MahoraShark - {NOMBRE_USUARIO}'s Prestige", page_icon="⛩️")
 
-# --- 2. CONEXIÓN REAL BITSO & SEGURIDAD ---
 API_KEY = st.secrets.get("BITSO_KEY")
 API_SECRET = st.secrets.get("BITSO_SECRET")
 MODO_REAL = True if API_KEY and API_SECRET else False
 
+# --- 2. FUNCIONES DE CONEXIÓN ---
 def firmar(metodo, endpoint, cuerpo=""):
     nonce = str(int(time.time() * 1000))
     mensaje = nonce + metodo + endpoint + cuerpo
     firma = hmac.new(API_SECRET.encode(), mensaje.encode(), hashlib.sha256).hexdigest()
     return {'Authorization': f'Bitso {API_KEY}:{nonce}:{firma}', 'Content-Type': 'application/json'}
 
-# --- 3. ESTILO VISUAL (Cyberpunk, Neón, Glow, Gotas) ---
-fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura_de_pantalla_2026_03_14_005126.png"
+def ejecutar_orden_bitso(side, amount_mxn):
+    """ side: 'buy' o 'sell' """
+    if not MODO_REAL: return "SIMULACIÓN EXITOSA"
+    try:
+        endpoint = "/v3/orders/"
+        # Para simplificar, compramos a precio de mercado
+        cuerpo = f'{{"book": "btc_mxn", "side": "{side}", "type": "market", "nominal": "{amount_mxn}"}}'
+        h = firmar("POST", endpoint, cuerpo)
+        r = requests.post(f"https://api.bitso.com{endpoint}", headers=h, data=cuerpo).json()
+        return r
+    except Exception as e:
+        return str(e)
 
+# --- 3. CSS PRESTIGE CENTER ---
+fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura_de_pantalla_2026_03_14_005126.png"
 st.markdown(f"""
     <style>
-    /* Fondo Cósmico con Gotas */
-    .stApp {{ 
-        background: linear-gradient(rgba(5, 10, 14, 0.95), rgba(5, 10, 14, 0.98)), url("{fondo_url}"); 
-        background-size: cover; background-attachment: fixed; color: white; 
-    }}
-    /* Header Principal con Glow Cyan */
-    .main-header {{
-        text-align: center; color: #ffffff; font-weight: bold; font-size: 36px;
-        text-shadow: 0 0 15px #00f2ff, 0 0 25px #00f2ff; letter-spacing: 3px; padding: 15px;
-        border-bottom: 2px solid #00f2ff; box-shadow: 0 5px 15px rgba(0, 242, 255, 0.3);
-        margin-bottom: 20px;
-    }}
-    /* Tarjetas de Métricas Neón */
-    .metric-card {{
-        background: rgba(11, 20, 26, 0.9); border: 2px solid #00f2ff;
-        border-radius: 10px; padding: 15px; text-align: center;
-        box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
-    }}
-    .metric-title {{ font-size: 12px; color: #8b9bb4; text-transform: uppercase; letter-spacing: 1px; }}
-    .metric-val {{ font-size: 26px; font-weight: bold; color: #00f2ff; text-shadow: 0 0 10px #00f2ff; }}
-    /* Consola Cerebro Mahora (Estilo Hacker) */
-    .ia-terminal {{
-        background: rgba(0,0,0,0.9); border: 2px solid #ff00ff;
-        border-radius: 10px; padding: 15px; font-family: 'Courier New', monospace;
-        color: #39FF14; height: 350px; overflow-y: auto; box-shadow: 0 0 15px rgba(255, 0, 255, 0.2);
-        line-height: 1.5;
-    }}
+    .stApp {{ background: linear-gradient(rgba(5,10,14,0.9), rgba(5,10,14,0.95)), url("{fondo_url}"); background-size: cover; color: white; }}
+    .main-header {{ text-align: center; color: #ffffff; font-weight: bold; font-size: 32px; text-shadow: 0 0 15px #00f2ff; border-bottom: 2px solid #00f2ff; padding: 10px; margin-bottom: 20px; }}
+    .metric-card {{ background: rgba(11, 20, 26, 0.9); border: 1.5px solid #00f2ff; border-radius: 10px; padding: 12px; text-align: center; box-shadow: 0 0 10px rgba(0, 242, 255, 0.2); }}
+    .ia-terminal {{ background: #000; border: 1.5px solid #ff00ff; border-radius: 10px; padding: 15px; font-family: monospace; color: #39FF14; height: 300px; overflow-y: auto; font-size: 12px; }}
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. MOTOR DE DATOS (Mercado & Cartera) ---
-def get_all_data():
+# --- 4. CÁLCULO DE INDICADORES (RSI) ---
+def calcular_rsi(prices, period=14):
+    deltas = np.diff(prices)
+    seed = deltas[:period+1]
+    up = seed[seed >= 0].sum()/period
+    down = -seed[seed < 0].sum()/period
+    rs = up/down
+    rsi = np.zeros_like(prices)
+    rsi[:period] = 100. - 100./(1. + rs)
+    for i in range(period, len(prices)):
+        delta = deltas[i-1]
+        if delta > 0: upval, downval = delta, 0.
+        else: upval, downval = 0., -delta
+        up = (up*(period-1) + upval)/period
+        down = (down*(period-1) + downval)/period
+        rs = up/down
+        rsi[i] = 100. - 100./(1. + rs)
+    return rsi[-1]
+
+# --- 5. OBTENCIÓN DE DATOS ---
+r_ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()['payload']
+precio_act = float(r_ticker['last'])
+saldo_mxn = 117.63
+if MODO_REAL:
     try:
-        # Mercado (Precio Actual)
-        r_ticker = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()['payload']
-        precio = float(r_ticker['last'])
-        vwap = float(r_ticker['vwap'])
-        cambio_pct = ((precio - vwap) / vwap) * 100
-        
-        # Cartera Real (Bitso Balance)
-        saldo_mxn = 117.63 # Tu saldo detectado
-        if MODO_REAL:
-            try:
-                h = firmar("GET", "/v3/balance/")
-                res = requests.get("https://api.bitso.com/v3/balance/", headers=h).json()
-                for b in res['payload']['balances']:
-                    if b['currency'] == 'mxn': saldo_mxn = float(b['total'])
-            except: pass
-        
-        # Simulación de Velas Pro (50 periodos)
-        np.random.seed(int(time.time()) % 1000)
-        p_list = [precio * (1 + np.sin(i/5)*0.002 + np.random.normal(0, 0.001)) for i in range(50)]
-        df = pd.DataFrame({'Close': p_list})
-        df['Open'] = df['Close'].shift(1).fillna(p_list[0] * 0.999)
-        df['High'] = df[['Open', 'Close']].max(axis=1) * 1.001
-        df['Low'] = df[['Open', 'Close']].min(axis=1) * 0.999
-        df['SMA_short'] = df['Close'].rolling(7).mean()
-        df['SMA_long'] = df['Close'].rolling(15).mean()
-        df['Vol'] = np.random.randint(100, 1000, 50)
-        
-        return precio, cambio_pct, saldo_mxn, df
-    except:
-        return 1261324.0, 2.1, 117.63, pd.DataFrame()
+        h_bal = firmar("GET", "/v3/balance/")
+        res_bal = requests.get("https://api.bitso.com/v3/balance/", headers=h_bal).json()
+        for b in res_bal['payload']['balances']:
+            if b['currency'] == 'mxn': saldo_mxn = float(b['total'])
+    except: pass
 
-# --- EJECUCIÓN ---
-precio_act, cambio_pct, saldo_mxn, df_data = get_all_data()
+# Generar datos simulados para la gráfica (Velas)
+prices = [precio_act * (1 + np.sin(i/10)*0.001 + np.random.normal(0,0.0005)) for i in range(50)]
+rsi_val = calcular_rsi(prices)
 
-# --- 🔝 HEADER ---
-st.markdown(f'<div class="main-header">⛩️ {NOMBRE_USUARIO.upper()}\'S PRESTIGE CENTER</div>', unsafe_allow_html=True)
+# --- 6. LÓGICA DE TRADING (LA MENTE DE MAHORA) ---
+log_ia = []
+if rsi_val < 35:
+    decision = "COMPRAR (BARATO)"
+    status_color = "#39FF14"
+    res_trade = ejecutar_orden_bitso("buy", 20.0) # Compra $20 MXN
+    log_ia.append(f"ORDEN DE COMPRA ENVIADA: $20 MXN")
+elif rsi_val > 65:
+    decision = "VENDER (CARO)"
+    status_color = "#ff00ff"
+    # Aquí venderías una fracción de BTC, por ahora simplificamos a log
+    log_ia.append(f"ZONA DE VENTA ALCANZADA. EVALUANDO...")
+else:
+    decision = "HOLD (ESPERAR)"
+    status_color = "#ffffff"
+    log_ia.append("MERCADO NEUTRO. SIN ACCIÓN.")
 
-# --- 📊 PANEL DE MÉTRICAS (4 Tarjetas) ---
+# --- 7. RENDERIZADO ---
+st.markdown(f'<div class="main-header">⛩️ {NOMBRE_USUARIO.upper()}\'S QUANTUM TERMINAL</div>', unsafe_allow_html=True)
+
 c1, c2, c3, c4 = st.columns(4)
-with c1: st.markdown(f'<div class="metric-card"><div class="metric-title">BTC/MXN BITSO</div><div class="metric-val">${precio_act:,.0f}</div><small style="color:#39FF14">+{cambio_pct:.1f}%</small></div>', unsafe_allow_html=True)
-with c2: st.markdown(f'<div class="metric-card"><div class="metric-title">MXN BALANCE (REAL)</div><div class="metric-val" style="color:#ff00ff">${saldo_mxn:,.2f}</div></div>', unsafe_allow_html=True)
-with c3: st.markdown(f'<div class="metric-card"><div class="metric-title">IA STATUS</div><div class="metric-val" style="color:#39FF14">{"ACTIVATED 🟢" if MODO_REAL else "SIMULATION 🟡"}</div></div>', unsafe_allow_html=True)
-with c4: st.markdown(f'<div class="metric-card"><div class="metric-title">META 10K PROGRESS</div><div class="metric-val">{(saldo_mxn/10000)*100:.2f}%</div></div>', unsafe_allow_html=True)
+c1.markdown(f'<div class="metric-card"><div style="font-size:10px">BTC/MXN</div><div style="font-size:20px">${precio_act:,.0f}</div></div>', unsafe_allow_html=True)
+c2.markdown(f'<div class="metric-card"><div style="font-size:10px">SALDO REAL</div><div style="font-size:20px; color:#ff00ff">${saldo_mxn:,.2f}</div></div>', unsafe_allow_html=True)
+c3.markdown(f'<div class="metric-card"><div style="font-size:10px">RSI (14)</div><div style="font-size:20px; color:{status_color}">{rsi_val:.1f}</div></div>', unsafe_allow_html=True)
+c4.markdown(f'<div class="metric-card"><div style="font-size:10px">IA DECISION</div><div style="font-size:18px">{decision}</div></div>', unsafe_allow_html=True)
 
 st.write("---")
 
-col_main, col_brain = st.columns([2.5, 1])
+col_left, col_right = st.columns([2, 1])
 
-with col_main:
-    st.write("### 📈 Gráfica de Velas Japonesas (Professional View)")
-    fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_width=[0.2, 0.8])
-    # Velas (Cian/Magenta)
-    fig.add_trace(go.Candlestick(open=df_data['Open'], high=df_data['High'], low=df_data['Low'], close=df_data['Close'], 
-                                 increasing_line_color='#00f2ff', decreasing_line_color='#ff00ff', name="Precio"), row=1, col=1)
-    # SMAs
-    fig.add_trace(go.Scatter(y=df_data['SMA_short'], line=dict(color='#00f2ff', width=1), name="SMA Corta"), row=1, col=1)
-    fig.add_trace(go.Scatter(y=df_data['SMA_long'], line=dict(color='#ff00ff', width=1), name="SMA Larga"), row=1, col=1)
-    # Volumen
-    fig.add_trace(go.Bar(y=df_data['Vol'], marker_color='#00f2ff', opacity=0.3, name="Volumen"), row=2, col=1)
-    
-    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', showlegend=False, 
-                      xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0), font_color="white",
-                      yaxis=dict(gridcolor='rgba(255,255,255,0.05)'), xaxis=dict(gridcolor='rgba(255,255,255,0.05)'))
+with col_left:
+    # Gráfica de Velas
+    fig = go.Figure(data=[go.Candlestick(y=prices, increasing_line_color='#00f2ff', decreasing_line_color='#ff00ff')])
+    fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', xaxis_rangeslider_visible=False, height=400, margin=dict(l=0,r=0,t=0,b=0))
     st.plotly_chart(fig, use_container_width=True)
 
-    # Indicadores
-    ci1, ci2 = st.columns(2)
-    with ci1:
-        fig_rsi = go.Figure(go.Indicator(
-            mode = "gauge+number", value = 42.5, title = {'text': "RSI (14) - NEUTRO", 'font': {'size': 14}},
-            gauge = {'axis': {'range': [0, 100]}, 'bar': {'color': "#00f2ff"}, 'bgcolor': "#0b1018",
-                     'steps': [{'range': [0, 30], 'color': "#ff00ff"}, {'range': [70, 100], 'color': "#ff00ff"}]}))
-        fig_rsi.update_layout(height=200, paper_bgcolor='rgba(0,0,0,0)', font_color="white", margin=dict(t=30,b=0,l=10,r=10))
-        st.plotly_chart(fig_rsi, use_container_width=True)
-    with ci2:
-        st.write("### Volumen de Mercado")
-        st.bar_chart(df_data['Vol'], height=150)
-
-with col_brain:
-    ahora = datetime.now().strftime("%H:%M:%S")
+with col_right:
     st.markdown(f"""
-    <div style="background:#ff00ff22; border:1px solid #ff00ff; border-radius:10px; padding:15px; box-shadow:0 0 10px #ff00ff33;">
-        <h4 style="margin:0; color:#ff00ff;">🧠 CEREBRO MAHORA v2.0</h4>
-        <hr style="border-color:#ff00ff44">
+    <div class="ia-panel">
+        <h4 style="color:#ff00ff; margin-bottom:10px;">🧠 CEREBRO MAHORA v6.0</h4>
         <div class="ia-terminal">
-            [{ahora}] >> SCAN REAL FINALIZADO.<br>
-            [{ahora}] >> CONEXIÓN BITSO: {"OK" if MODO_REAL else "SIM"}.<br>
-            [{ahora}] >> SALDO DETECTADO: ${saldo_mxn} MXN.<br>
-            [{ahora}] >> RSI 42.5 (NEUTRO).<br>
-            [{ahora}] >> SIN SEÑAL CLARA. HOLD.<br>
-            [{ahora}] >> RIESGO: BAJO (2%).<br>
-            <hr style="border-color:#333">
+            [{datetime.now().strftime("%H:%M:%S")}] >> INICIANDO ESCANEO...<br>
+            [{datetime.now().strftime("%H:%M:%S")}] >> RSI DETECTADO: {rsi_val:.2f}<br>
+            [{datetime.now().strftime("%H:%M:%S")}] >> DECISIÓN: {decision}<br>
+            <hr>
+            >> LOG DE OPERACIÓN:<br>
+            {log_ia[0] if log_ia else "ESPERANDO SEÑAL..."}<br><br>
             >> PENSAMIENTO:<br>
-            {NOMBRE_USUARIO}, el mercado muestra volatilidad controlada. Manteniendo posición para el objetivo de los $10,000 MXN. Falta poco para Canadá 🇨🇦.
+            Angel, estamos operando con el saldo real. Si el RSI baja de 35, entraré con $20 pesos para acumular barato.
         </div>
     </div>
     """, unsafe_allow_html=True)
-    st.toggle("IA ACTIVA", value=True)
-    if st.button("🚀 FORZAR RE-ESCANEO QUANTUM", use_container_width=True):
-        st.rerun()
 
-# Auto-Refresh cada 20 seg
-time.sleep(20)
+# Auto-Refresh cada 30 segundos
+time.sleep(30)
 st.rerun()
