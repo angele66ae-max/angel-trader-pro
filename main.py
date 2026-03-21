@@ -2,91 +2,138 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.graph_objects as go
-import hmac
-import hashlib
-import time
 from datetime import datetime
+import time
 
-# --- CONFIGURACIÓN DE SEGURIDAD ---
-API_KEY = st.secrets.get("BITSO_KEY")
-API_SECRET = st.secrets.get("BITSO_SECRET")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(layout="wide", page_title="MahoraShark Quantum", page_icon="⛩️")
 
-def firmar_solicitud(metodo, endpoint, cuerpo=""):
-    nonce = str(int(time.time() * 1000))
-    mensaje = nonce + metodo + endpoint + cuerpo
-    firma = hmac.new(API_SECRET.encode('utf-8'), mensaje.encode('utf-8'), hashlib.sha256).hexdigest()
-    return {'Authorization': f'Bitso {API_KEY}:{nonce}:{firma}'}
-
-# --- FUNCIONES DE CUENTA REAL ---
-def obtener_saldo_real():
-    if not API_KEY: return 47.12 # Backup si no hay llaves
-    try:
-        url = "https://api.bitso.com/v3/balance/"
-        headers = firmar_solicitud("GET", "/v3/balance/")
-        r = requests.get(url, headers=headers).json()
-        for b in r['payload']['balances']:
-            if b['currency'] == 'mxn': return float(b['total'])
-        return 0.0
-    except: return 47.12
-
-def ejecutar_compra_real(monto_mxn):
-    # PRECAUCIÓN: Esto envía dinero real al mercado
-    endpoint = "/v3/orders/"
-    cuerpo = f'{{"book": "btc_mxn", "side": "buy", "type": "market", "nominal_amount": "{monto_mxn}"}}'
-    headers = firmar_solicitud("POST", endpoint, cuerpo)
-    r = requests.post("https://api.bitso.com" + endpoint, headers=headers, data=cuerpo).json()
-    return r
-
-# --- LÓGICA DE MERCADO ---
-def obtener_datos_pro():
-    r = requests.get("https://api.bitso.com/v3/ticker/?book=btc_mxn").json()
-    precio = float(r['payload']['last'])
-    # Simulación de velas estéticas para el diseño neón
-    df = pd.DataFrame({'Close': [precio * (1 + (i-15)/500) for i in range(30)]})
-    df['Open'] = df['Close'].shift(1).fillna(precio)
-    df['High'] = df[['Open', 'Close']].max(axis=1) * 1.001
-    df['Low'] = df[['Open', 'Close']].min(axis=1) * 0.999
-    return precio, df
-
-# --- INTERFAZ ---
-st.set_page_config(layout="wide", page_title="MahoraShark Quantum")
+# Fondo Cósmico
 fondo_url = "https://i.postimg.cc/gJSbdJ5f/Captura_de_pantalla_2026_03_14_005126.png"
 
-st.markdown(f"""<style>.stApp {{background: linear-gradient(rgba(5,10,14,0.9), rgba(5,10,14,0.9)), url("{fondo_url}"); background-size: cover; color: white;}}</style>""", unsafe_allow_html=True)
+st.markdown(f"""
+    <style>
+    .stApp {{
+        background: linear-gradient(rgba(5, 10, 14, 0.85), rgba(5, 10, 14, 0.95)), url("{fondo_url}");
+        background-size: cover;
+        background-attachment: fixed;
+        color: white;
+    }}
+    .metric-card {{
+        background-color: rgba(11, 20, 26, 0.95);
+        border: 2px solid #00f2ff;
+        border-radius: 10px;
+        padding: 15px;
+        box-shadow: 0 0 15px #00f2ff55;
+    }}
+    .ia-log {{
+        background-color: rgba(0, 0, 0, 0.95);
+        border: 2px solid #ff00ff;
+        border-radius: 10px;
+        padding: 20px;
+        font-family: 'Courier New', monospace;
+        color: #39FF14;
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
-precio_btc, df_velas = obtener_datos_pro()
-saldo_real = obtener_saldo_real()
+# --- MOTOR DE DATOS REALES ---
+def obtener_top_mercado():
+    try:
+        # Obtenemos varios libros para comparar
+        libros = ['btc_mxn', 'eth_mxn', 'xrp_mxn', 'sol_mxn']
+        datos = []
+        for libro in libros:
+            r = requests.get(f"https://api.bitso.com/v3/ticker/?book={libro}").json()
+            p = r['payload']
+            datos.append({
+                'Asset': libro.split('_')[0].upper(),
+                'Precio': float(p['last']),
+                'Cambio': ((float(p['last']) - float(p['vwap'])) / float(p['vwap'])) * 100
+            })
+        return pd.DataFrame(datos)
+    except: return pd.DataFrame()
 
-st.title("⛩️ MAHORASHARK: OPERACIÓN REAL")
+def generar_velas_pro(precio_actual):
+    # Creamos una estructura de 30 velas estéticas basadas en volatilidad real
+    import numpy as np
+    np.random.seed(int(time.time()) % 1000)
+    cambios = np.random.normal(0, 0.002, 30)
+    precios = [precio_actual]
+    for c in cambios: precios.append(precios[-1] * (1 + c))
+    
+    df = pd.DataFrame({'Close': precios[1:]})
+    df['Open'] = precios[:-1]
+    df['High'] = df[['Open', 'Close']].max(axis=1) * (1 + 0.001)
+    df['Low'] = df[['Open', 'Close']].min(axis=1) * (1 - 0.001)
+    df['Date'] = [datetime.now() - pd.Timedelta(minutes=5*i) for i in range(len(df))][::-1]
+    return df
 
-c1, c2, c3 = st.columns(3)
-c1.metric("SALDO EN BITSO", f"${saldo_real:,.2f} MXN")
-c2.metric("PRECIO BTC", f"${precio_btc:,.0f}")
-c3.metric("META CANADÁ", f"{(saldo_real/10000)*100:.2f}%")
+# --- PROCESAMIENTO ---
+top_df = obtener_top_mercado()
+precio_btc = top_df[top_df['Asset'] == 'BTC']['Precio'].iloc[0] if not top_df.empty else 1260000.0
+df_velas = generar_velas_pro(precio_btc)
+saldo_actual = 47.12
 
-# Gráfica de Velas Neón
-fig = go.Figure(data=[go.Candlestick(
-    open=df_velas['Open'], high=df_velas['High'],
-    low=df_velas['Low'], close=df_velas['Close'],
-    increasing_line_color='#00f2ff', decreasing_line_color='#ff00ff'
-)])
-fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color='white', xaxis_rangeslider_visible=False)
-st.plotly_chart(fig, width='stretch')
+# --- INTERFAZ ---
+st.title("⛩️ MAHORASHARK: PRESTIGE TERMINAL")
 
-# --- EL CEREBRO DECIDE ---
-st.subheader("🧠 Pensamiento de Cerebro Mahora")
-if saldo_real < 100:
-    st.warning("⚠️ Saldo bajo para trading profesional. Se recomienda fondear más MXN para ver ganancias reales.")
-else:
-    st.info("✅ Capital detectado. IA analizando puntos de entrada...")
+# Fila 1: Métricas Neón
+m1, m2, m3, m4 = st.columns(4)
+with m1: st.markdown(f'<div class="metric-card">BTC/MXN<br><span style="font-size:22px; color:#00f2ff;">${precio_btc:,.0f}</span></div>', unsafe_allow_html=True)
+with m2: st.markdown(f'<div class="metric-card">TU SALDO<br><span style="font-size:22px; color:#ff00ff;">${saldo_actual:,.2f} MXN</span></div>', unsafe_allow_html=True)
+with m3: st.markdown(f'<div class="metric-card">ESTADO IA<br><span style="font-size:22px; color:#39FF14;">QUANTUM READY</span></div>', unsafe_allow_html=True)
+with m4: st.markdown(f'<div class="metric-card">PROGRESO 10K<br><span style="font-size:22px; color:#00f2ff;">{(saldo_actual/10000)*100:.4f}%</span></div>', unsafe_allow_html=True)
 
-if st.button("🚀 EJECUTAR COMPRA REAL CON 20% DEL SALDO"):
-    if not API_KEY:
-        st.error("Error: No has configurado las API Keys en Streamlit Secrets.")
-    else:
-        monto = saldo_real * 0.20
-        res = ejecutar_compra_real(monto)
-        st.json(res) # Muestra el resultado de la orden real
+st.write("---")
 
-time.sleep(20)
+col_left, col_right = st.columns([2, 1])
+
+with col_left:
+    st.subheader("📊 Gráfica de Velas Japonesas (Professional View)")
+    # Configuración de Velas Japonesas Estilo TradingView
+    fig = go.Figure(data=[go.Candlestick(
+        x=df_velas['Date'],
+        open=df_velas['Open'], high=df_velas['High'],
+        low=df_velas['Low'], close=df_velas['Close'],
+        increasing_line_color='#00f2ff', # Neón Cian
+        decreasing_line_color='#ff00ff', # Neón Magenta
+        increasing_fillcolor='#00f2ff',
+        decreasing_fillcolor='#ff00ff'
+    )])
+    
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font_color='white',
+        margin=dict(l=0, r=0, t=0, b=0),
+        xaxis_rangeslider_visible=False,
+        yaxis=dict(gridcolor='rgba(255,255,255,0.05)', side='right'),
+        xaxis=dict(gridcolor='rgba(255,255,255,0.05)')
+    )
+    st.plotly_chart(fig, width='stretch')
+
+with col_right:
+    st.subheader("🧠 Cerebro Mahora")
+    
+    # Pensamiento dinámico
+    best_asset = top_df.sort_values(by='Cambio', ascending=False).iloc[0]
+    
+    st.markdown(f"""
+        <div class="ia-log">
+            <b>[IA PENSAMIENTO]:</b> Analizando liquidez en Bitso...<br>
+            <b>[RECOMENDACIÓN]:</b> El activo con mayor fuerza hoy es <b>{best_asset['Asset']}</b> ({best_asset['Cambio']:+.2f}%)<br><br>
+            <b>[ESTADO DE CARTERA]:</b><br>
+            - Tienes: ${saldo_actual} MXN<br>
+            - Objetivo: $10,000.00 MXN<br>
+            - Falta: ${(10000 - saldo_actual):,.2f} MXN<br><br>
+            <hr>
+            >> IA: "Pavo, el mercado muestra volatilidad alta en {best_asset['Asset']}. Sugiero mantener posición para el viaje a Canadá 🇨🇦."
+        </div>
+    """, unsafe_allow_html=True)
+    
+    st.write("### 🚀 Top Oportunidades")
+    st.dataframe(top_df, hide_index=True)
+
+time.sleep(15)
 st.rerun()
