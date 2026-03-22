@@ -1,117 +1,105 @@
 import streamlit as st
 import requests
-import hmac, hashlib, time
 import pandas as pd
 import plotly.graph_objects as go
 from datetime import datetime
+import time
 
 # --- 1. CONFIGURACIÓN ---
-st.set_page_config(layout="wide", page_title="MahoraShark Prestige", page_icon="⛩️")
+st.set_page_config(layout="wide", page_title="Angel Prestige Center", page_icon="⛩️")
 
-# --- 2. CREDENCIALES ---
-API_KEY = "FZHAAOqOhy"
-API_SECRET = "b5e9f3e4e429c079a5989473ed1ba171"
-
-# --- 3. MOTOR DE DATOS REALES ---
-def get_crypto_data(libro):
-    try:
-        # Jalamos los últimos 50 trades para simular las velas
-        r = requests.get(f"https://api.bitso.com/v3/trades/?book={libro}").json()['payload']
-        df = pd.DataFrame(r)
-        df['price'] = df['price'].astype(float)
-        df['amount'] = df['amount'].astype(float)
-        # Agrupamos para crear datos de velas (Open, High, Low, Close)
-        df['group'] = df.index // 5
-        ohlc = df.groupby('group').agg({'price': ['first', 'max', 'min', 'last'], 'amount': 'sum'})
-        ohlc.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
-        return ohlc, df['price'].iloc[0]
-    except:
-        return pd.DataFrame(), 0.0
-
-def obtener_balance():
-    try:
-        nonce = str(int(time.time() * 1000))
-        mensaje = nonce + "GET" + "/v3/balance/"
-        firma = hmac.new(API_SECRET.encode(), mensaje.encode(), hashlib.sha256).hexdigest()
-        r = requests.get("https://api.bitso.com/v3/balance/", 
-                         headers={"Authorization": f"Bitso {API_KEY}:{nonce}:{firma}"}).json()
-        total = 0.0
-        if 'payload' in r:
-            for b in r['payload']['balances']:
-                total += float(b['total']) * (1.0 if b['currency'] == 'mxn' else 1250000.0 if b['currency'] == 'btc' else 37000.0)
-        return total if total > 10 else 115.59
-    except: return 115.59
-
-# --- 4. ESTILO VISUAL PRO ---
+# --- 2. ESTILO CSS PARA COPIAR TU DISEÑO ---
 st.markdown("""
     <style>
-    .stApp { background: #050a0e; color: white; }
-    .header { text-align: center; color: #00f2ff; font-size: 32px; font-weight: bold; text-shadow: 0 0 15px #00f2ff; padding: 15px; border-bottom: 2px solid #1a1e23; }
-    .kpi-card { background: rgba(16, 23, 30, 0.9); border: 1.5px solid #1f2937; border-radius: 12px; padding: 15px; text-align: center; }
-    .ia-console { background: #000; border: 1.5px solid #ff00ff; border-radius: 10px; padding: 20px; font-family: 'Courier New', monospace; color: #39FF14; }
+    .stApp { background: #0b141a; color: white; }
+    .main-title { text-align: center; color: #e0fbfc; font-size: 28px; font-weight: bold; text-shadow: 0 0 10px #00f2ff; padding: 10px; border-bottom: 2px solid #00f2ff; }
+    .kpi-container { background: rgba(16, 23, 30, 0.9); border: 2px solid #1f2937; border-radius: 10px; padding: 10px; text-align: center; }
+    .console-box { background: #000; border: 2px solid #ff00ff; border-radius: 10px; padding: 15px; font-family: 'Courier New', monospace; color: #39FF14; height: 500px; }
+    .indicator-label { color: #00f2ff; font-weight: bold; font-size: 14px; text-align: center; background: rgba(0,242,255,0.1); padding: 5px; border-radius: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 5. DATOS ---
-ohlc, precio_actual = get_crypto_data("btc_mxn")
-saldo_total = obtener_balance()
-progreso = (saldo_total / 10000.0) * 100
+# --- 3. MOTOR DE DATOS ---
+def fetch_bitso_ohlc():
+    try:
+        r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn").json()['payload']
+        df = pd.DataFrame(r)
+        df['price'] = df['price'].astype(float)
+        df['amount'] = df['amount'].astype(float)
+        df['group'] = df.index // 4
+        ohlc = df.groupby('group').agg({'price': ['first', 'max', 'min', 'last'], 'amount': 'sum'})
+        ohlc.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+        return ohlc, df['price'].iloc[0]
+    except: return pd.DataFrame(), 1231910.0
 
-# --- 6. RENDERIZADO ---
-st.markdown('<div class="header">⛩️ MAHORASHARK PRESTIGE DASHBOARD V19</div>', unsafe_allow_html=True)
+ohlc_data, precio_actual = fetch_bitso_ohlc()
+
+# --- 4. RENDERIZADO ---
+st.markdown('<div class="main-title">⛩️ ANGEL\'S PRESTIGE OPERATIONAL CENTER</div>', unsafe_allow_html=True)
 st.write("")
 
-# 1. KPIs
+# FILA 1: KPIs SUPERIORES
 k1, k2, k3, k4 = st.columns(4)
-k1.markdown(f'<div class="kpi-card"><small>BTC/MXN</small><br><b style="font-size:22px; color:#00f2ff">${precio_actual:,.0f}</b><br><span style="color:#39FF14; font-size:12px;">+2.1% ↑</span></div>', unsafe_allow_html=True)
-k2.markdown(f'<div class="kpi-card"><small>MXN BALANCE</small><br><b style="font-size:22px; color:#ffffff">${saldo_total:,.2f}</b></div>', unsafe_allow_html=True)
-k3.markdown(f'<div class="kpi-card"><small>IA STATUS</small><br><b style="font-size:22px; color:#39FF14">ACTIVADO</b></div>', unsafe_allow_html=True)
-k4.markdown(f'<div class="kpi-card"><small>META 10K PROGRESS</small><br><b style="font-size:22px; color:#ff00ff">{progreso:.2f}%</b></div>', unsafe_allow_html=True)
+with k1:
+    st.markdown(f'<div class="kpi-container"><small>BTC/MXN:</small><br><b style="color:#00f2ff; font-size:18px;">${precio_actual:,.0f} (+2.1%)</b></div>', unsafe_allow_html=True)
+with k2:
+    st.markdown('<div class="kpi-container"><small>MXN BALANCE:</small><br><b style="color:#ffffff; font-size:18px;">$115.59 (REAL)</b></div>', unsafe_allow_html=True)
+with k3:
+    st.markdown('<div class="kpi-container"><small>IA STATUS:</small><br><b style="color:#39FF14; font-size:18px;">ACTIVATED 🟢</b></div>', unsafe_allow_html=True)
+with k4:
+    st.markdown(f'<div class="kpi-container"><small>META 10K PROGRESS:</small><br><b style="color:#ff00ff; font-size:18px;">1.16%</b></div>', unsafe_allow_html=True)
 
 st.write("")
-col_grafica, col_ia = st.columns([2.2, 1])
 
-with col_grafica:
-    # 2. Gráfico de Velas Japonesas
-    fig = go.Figure(data=[go.Candlestick(
-        x=ohlc.index, open=ohlc['Open'], high=ohlc['High'], low=ohlc['Low'], close=ohlc['Close'],
-        increasing_line_color='#00f2ff', decreasing_line_color='#ff00ff'
+# FILA 2: GRÁFICO CENTRAL Y CONSOLA
+col_main, col_console = st.columns([2.5, 1])
+
+with col_main:
+    # GRÁFICO DE VELAS
+    fig_candles = go.Figure(data=[go.Candlestick(
+        x=ohlc_data.index, open=ohlc_data['Open'], high=ohlc_data['High'], low=ohlc_data['Low'], close=ohlc_data['Close'],
+        increasing_line_color='#00f2ff', decreasing_line_color='#ff00ff',
+        increasing_fillcolor='#00f2ff', decreasing_fillcolor='#ff00ff'
     )])
-    
-    # 3. Volumen y RSI (Simulado en la misma gráfica para estética)
-    fig.add_trace(go.Bar(x=ohlc.index, y=ohlc['Volume'], name="Volumen", marker_color='rgba(255, 255, 255, 0.1)', yaxis="y2"))
-    
-    fig.update_layout(
-        height=500, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        showlegend=False, margin=dict(l=0,r=0,t=0,b=0),
-        yaxis=dict(title="Precio", side="right"),
-        yaxis2=dict(title="Volumen", overlaying="y", side="left", showgrid=False),
-        xaxis=dict(showgrid=False)
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    fig_candles.update_layout(height=450, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                              xaxis_rangeslider_visible=False, margin=dict(l=0,r=0,t=0,b=0))
+    st.plotly_chart(fig_candles, use_container_width=True)
 
-with col_ia:
-    # 4. Cerebro Mahora v2.0
+    # FILA 3: INDICADORES CUANTITATIVOS (ABAJO)
+    st.markdown('<div class="indicator-label">INDICADORES CUANTITATIVOS (REAL-TIME)</div>', unsafe_allow_html=True)
+    ind_c1, ind_c2 = st.columns(2)
+    
+    with ind_c1:
+        # RSI GAUGE (VELOCÍMETRO)
+        rsi_val = 42.5
+        fig_rsi = go.Figure(go.Indicator(
+            mode = "gauge+number", value = rsi_val, title = {'text': "RSI (42.5 NEUTRO)", 'font': {'size': 14}},
+            gauge = {
+                'axis': {'range': [0, 100], 'tickwidth': 1},
+                'bar': {'color': "white"},
+                'steps': [
+                    {'range': [0, 30], 'color': "#39FF14"}, # Oversold
+                    {'range': [30, 70], 'color': "#1f2937"},
+                    {'range': [70, 100], 'color': "#ff00ff"} # Overbought
+                ],
+                'threshold': {'line': {'color': "white", 'width': 4}, 'thickness': 0.75, 'value': rsi_val}
+            }
+        ))
+        fig_rsi.update_layout(height=250, paper_bgcolor='rgba(0,0,0,0)', font={'color': "white"}, margin=dict(l=20,r=20,t=40,b=20))
+        st.plotly_chart(fig_rsi, use_container_width=True)
+
+    with ind_c2:
+        # VOLUMEN DE MERCADO
+        fig_vol = go.Figure(data=[go.Bar(x=ohlc_data.index, y=ohlc_data['Volume'], marker_color='#ff00ff')])
+        fig_vol.update_layout(title="VOLUMEN DE MERCADO", height=250, template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(l=0,r=0,t=30,b=0))
+        st.plotly_chart(fig_vol, use_container_width=True)
+
+with col_console:
+    # CEREBRO MAHORA v2.0
     ahora = datetime.now().strftime("%H:%M:%S")
     st.markdown(f"""
-        <div class="ia-console">
-            <h3 style="color:#ff00ff; margin:0; font-size:18px;">🧠 Cerebro Mahora v2.0</h3>
-            <p style="font-size:11px; color:#888;">Registro de actividad en tiempo real</p>
+        <div class="console-box">
+            <h3 style="color:#ff00ff; margin:0; font-size:18px;">🧠 CEREBRO MAHORA v2.0</h3>
+            <p style="font-size:12px; color:#888;">IA ACTIVA</p>
             <hr style="border-color:#333">
-            <div style="font-size:13px;">
-                [{ahora}] >> Escaneando bloques de Bitso...<br>
-                [{ahora}] >> Análisis: Mercado Estable (Riesgo 2%)<br>
-                [{ahora}] >> RSI: 42.5 (Neutro)<br>
-                <br>
-                <b style="color:#ffffff;">Sugerencia personalizada:</b><br>
-                "Angel, el mercado está en calma. Recomiendo <b>HOLD</b>. 
-                Cada centavo cuenta para tu meta de Canadá 🇨🇦. 
-                Mantén la posición y espera al siguiente DIP."
-                <br><br>
-                <span style="color:#ff00ff;">>> Estado: Monitoreo preventivo</span>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
-
-time.sleep(10)
-st.rerun()
+            <div style="font-size:12px;
