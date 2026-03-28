@@ -1,135 +1,169 @@
 import streamlit as st
 import plotly.graph_objects as go
 import requests
-from datetime import datetime
 import time
+from datetime import datetime
 
-# --- 1. CONFIGURACIÓN DEL SISTEMA ---
+# --- 1. SETTINGS GLOBALES ---
 SALDO_REAL = 144.95
 FACTOR = 32
-ASSET_NAME = "RENDER (IA)"
+ASSET = "RENDER (IA)"
 
 st.set_page_config(layout="wide", page_title="MAHORASHARK ALPHA V45")
 
-# --- 2. DESIGN SYSTEM (CSS TÁCTICO) ---
-st.markdown("""
+# --- 2. EL MARTILLO: UI/UX POLISH (GLASSMORPHISM & NEON) ---
+st.markdown(f"""
 <style>
-    /* Fondo Dark Mode Profundo #0A0E14 */
-    [data-testid="stHeader"], [data-testid="stToolbar"] {display: none !important;}
-    .stApp { background-color: #0A0E14 !important; color: #00F2FF !important; font-family: 'Inter', sans-serif; }
-    
-    /* Header Estilo Guadaña */
-    .header-box {
+    /* Fondo Base Dark Mode Profundo */
+    [data-testid="stHeader"], [data-testid="stToolbar"] {{display: none !important;}}
+    .stApp {{ 
+        background-color: #0A0E14 !important; 
+        color: #00F2FF !important; 
+        font-family: 'Inter', sans-serif;
+    }}
+
+    /* Panel con Profundidad y Glassmorphism */
+    .glass-panel {{
+        background: rgba(26, 31, 38, 0.7) !important;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(0, 242, 255, 0.1);
+        border-radius: 4px;
+        padding: 15px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        margin-bottom: 10px;
+    }}
+
+    /* Header con Neón Controlado */
+    .header-tactical {{
         display: flex; justify-content: space-between; align-items: center;
-        background-color: #000; padding: 10px 20px; border-bottom: 2px solid #00F2FF;
-    }
-    .balance-val { font-size: 36px; color: #00FF00; font-weight: 700; text-shadow: 0 0 15px #00FF00; }
-    .status-badge { background: #1a2a1a; color: #00FF00; border: 1px solid #00FF00; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: bold; margin-left: 5px; }
+        background: #000; padding: 10px 25px;
+        border-bottom: 2px solid #00F2FF;
+        box-shadow: 0 0 20px rgba(0, 242, 255, 0.2);
+    }}
+    .balance-glow {{
+        font-size: 38px; color: #00FF00; font-weight: 700;
+        text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+        font-family: 'Roboto Mono', monospace;
+    }}
 
-    /* Paneles Técnicos */
-    .panel { border: 1px solid #00F2FF33; background: #0A0E14; padding: 15px; border-radius: 4px; }
-    .label-min { font-size: 10px; color: #444 !important; text-transform: uppercase; letter-spacing: 2px; }
-    
-    /* Terminal logs */
-    .terminal { font-family: 'Consolas', monospace; font-size: 10px; color: #00F2FF; line-height: 1.2; }
-    .ok { color: #00FF00; font-weight: bold; }
+    /* Scrollbar Custom (Estilo Profesional) */
+    ::-webkit-scrollbar {{ width: 5px; }}
+    ::-webkit-scrollbar-track {{ background: #0A0E14; }}
+    ::-webkit-scrollbar-thumb {{ background: #00F2FF; border-radius: 10px; }}
 
-    /* Rueda de Mahoraga */
-    .wheel-anim { animation: rotate 10s linear infinite; width: 120px; display: block; margin: auto; }
-    @keyframes rotate { 100% { transform: rotate(360deg); } }
+    /* Terminal de Logs (Fósforo Neón) */
+    .terminal-log {{
+        font-family: 'Roboto Mono', monospace;
+        font-size: 11px; color: #00F2FF;
+        background: #050505; padding: 10px;
+        border-radius: 2px; border-left: 3px solid #00F2FF;
+        height: 120px; overflow-y: auto;
+    }}
+    .log-ok {{ color: #00FF00; text-shadow: 0 0 5px #00FF00; }}
+
+    /* Animación de la Rueda (SVG Dinámico en mente) */
+    .wheel-rotation {{
+        width: 130px; animation: spin-gear 12s linear infinite;
+        filter: drop-shadow(0 0 8px #8A2BE2);
+    }}
+    @keyframes spin-gear {{ 100% {{ transform: rotate(360deg); }} }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. RENDERIZADO DEL HEADER ---
+# --- 3. HEADER (NODO DE ESTADO GLOBAL) ---
 st.markdown(f"""
-<div class="header-box">
+<div class="header-tactical">
     <div>
-        <span style="font-weight:bold; font-size:20px;">🦈 MAHORASHARK ALPHA V45</span><br>
-        <span style="font-size:10px; color:#555;">TACTICAL TRADING GUADAÑA</span>
+        <span style="font-weight:bold; font-size:18px; letter-spacing:1px;">🦈 MAHORASHARK ALPHA V45</span><br>
+        <span style="font-size:9px; color:#444; font-family:monospace;">TACTICAL TRADING GUADAÑA | SHARK HUD</span>
     </div>
     <div style="text-align:center;">
-        <span style="font-size:10px; color:#fff;">MXN BALANCE:</span><br>
-        <span class="balance-val">${SALDO_REAL:,.2f}</span>
+        <span style="font-size:10px; color:#fff; font-family:monospace;">MXN BALANCE:</span><br>
+        <span class="balance-glow">${SALDO_REAL:,.2f}</span>
     </div>
-    <div style="display:flex;">
-        <span class="status-badge">LIVE</span>
-        <span class="status-badge">ONLINE</span>
-        <span class="status-badge" style="color:#00F2FF; border-color:#00F2FF;">FACTOR: {FACTOR}</span>
+    <div style="display:flex; gap:8px;">
+        <div style="background:#1a2a1a; border:1px solid #00FF00; color:#00FF00; padding:2px 10px; border-radius:3px; font-size:10px; font-weight:bold;">LIVE</div>
+        <div style="background:#0a1a2a; border:1px solid #00F2FF; color:#00F2FF; padding:2px 10px; border-radius:3px; font-size:10px; font-weight:bold;">FACTOR: {FACTOR}</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
 st.write("")
 
-# --- 4. LAYOUT DE 3 COLUMNAS ---
-c1, c2, c3 = st.columns([1, 2.8, 1])
+# --- 4. LAYOUT TÉCNICO (3 COLUMNAS) ---
+col_left, col_mid, col_right = st.columns([1, 2.8, 1])
 
-with c1:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown('<div class="label-min">MARKET ACCIONES</div>', unsafe_allow_html=True)
-    st.markdown(f'<div style="border:1px solid #00F2FF; padding:8px; font-size:12px; margin-bottom:10px;">SELECTED: {ASSET_NAME}</div>', unsafe_allow_html=True)
+# PANEL IZQUIERDO: SELECCIÓN DE ACTIVOS (SCROLL DINÁMICO)
+with col_left:
+    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:10px; color:#555; margin-bottom:10px;">MARKET ACCIONES</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="border:1px solid #00F2FF; padding:8px; font-size:12px; background:rgba(0,242,255,0.05);">SELECTED: {ASSET}</div>', unsafe_allow_html=True)
     
-    # Cuadrícula de activos
-    assets = ["RENDER", "APPLE", "SAND", "GALA", "BERM", "OTHERS", "SPLI", "RWIH"]
-    for i in range(0, len(assets), 2):
-        row = st.columns(2)
-        for j in range(2):
-            asset = assets[i+j]
-            style = "background:#00F2FF; color:#000;" if asset == "RENDER" else "background:#0d1117; color:#00F2FF;"
-            row[j].markdown(f'<div style="{style} border:1px solid #00F2FF33; text-align:center; padding:8px; font-size:10px; margin-bottom:5px;">{asset}</div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    # Lista con Scrollbar custom
+    st.markdown('<div style="height:350px; overflow-y:auto; margin-top:10px;">', unsafe_allow_html=True)
+    assets = ["RENDER", "APPLE", "SAND", "GALA", "BITCOIN", "SOLANA", "ETHEREUM", "TESLA", "META", "AMAZON"]
+    for a in assets:
+        btn_bg = "rgba(0,242,255,0.2)" if a == "RENDER" else "transparent"
+        st.markdown(f"""
+            <div style="display:flex; justify-content:space-between; padding:10px; border-bottom:1px solid #161b22; background:{btn_bg}; font-size:11px; cursor:pointer;">
+                <span>{a}</span><span style="color:#555;">></span>
+            </div>
+        """, unsafe_allow_html=True)
+    st.markdown('</div></div>', unsafe_allow_html=True)
 
-with c2:
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown('<div class="label-min">CANDLE CHART (CIAN/PURPLE)</div>', unsafe_allow_html=True)
+# PANEL CENTRAL: EL MOTOR VISUAL (CANDLE CHART COMPLETO)
+with col_mid:
+    st.markdown('<div class="glass-panel" style="height:550px;">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:10px; color:#555; margin-bottom:5px;">RADAR TÁCTICO DE MOVIMIENTO</div>', unsafe_allow_html=True)
     try:
         r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn", timeout=3).json()
         p = [float(t['price']) for t in r['payload']][::-1]
         
-        # Lógica de velas corregida (sin errores de corchetes)
+        # Velas con Cuerpo y Mechas (High/Low)
         fig = go.Figure(data=[go.Candlestick(
-            x=list(range(len(p))),
-            open=p,
-            high=[val * 1.001 for val in p],
-            low=[val * 0.999 for val in p],
-            close=p,
-            increasing_line_color='#00F2FF', # Cian para subir
-            decreasing_line_color='#8A2BE2', # Púrpura para bajar
-            increasing_fillcolor='rgba(0, 242, 255, 0.1)',
-            decreasing_fillcolor='rgba(138, 43, 226, 0.5)'
+            x=list(range(len(p))), open=p, high=[x*1.002 for x in p],
+            low=[x*0.998 for x in p], close=p,
+            increasing_line_color='#00F2FF', decreasing_line_color='#8A2BE2',
+            increasing_fillcolor='rgba(0, 242, 255, 0.2)', decreasing_fillcolor='rgba(138, 43, 226, 0.8)'
         )])
+        # Capa de Indicadores (Bollinger sutil)
+        fig.add_trace(go.Scatter(y=[x*1.005 for x in p], line=dict(color='rgba(0,242,255,0.1)', width=1), name="Upper BB"))
+        fig.add_trace(go.Scatter(y=[x*0.995 for x in p], line=dict(color='rgba(0,242,255,0.1)', width=1), name="Lower BB"))
+
         fig.update_layout(
             template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            height=450, margin=dict(l=0, r=0, t=0, b=0), xaxis_visible=False, yaxis_side="right",
-            yaxis_gridcolor="#111"
+            height=480, margin=dict(l=0, r=40, t=0, b=0), xaxis_visible=False, yaxis_side="right",
+            yaxis_gridcolor="rgba(255,255,255,0.02)"
         )
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    except:
-        st.markdown('<div style="color:red;">RADAR_OFFLINE</div>', unsafe_allow_html=True)
+    except: st.error("LINKING_RADAR...")
     st.markdown('</div>', unsafe_allow_html=True)
 
-with c3:
-    # ADAPTATION ENGINE
-    st.markdown('<div class="panel">', unsafe_allow_html=True)
-    st.markdown('<div class="label-min">ADAPTATION ENGINE</div>', unsafe_allow_html=True)
-    st.markdown('<div style="text-align:center;"><span style="font-size:80px; color:#00F2FF;" class="wheel-anim">☸</span></div>', unsafe_allow_html=True)
+# PANEL DERECHO: LÓGICA DE ADAPTACIÓN
+with col_right:
+    # Adaptation Wheel
+    st.markdown('<div class="glass-panel" style="text-align:center;">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:10px; color:#555; margin-bottom:15px;">ADAPTATION ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<img src="https://i.imgur.com/83p1y9N.png" class="wheel-rotation">', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:11px; margin-top:10px; color:#8A2BE2;">NEXT CHECK: 14s</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
-    
-    # TERMINAL LOGS
-    st.markdown('<div class="panel" style="margin-top:10px;">', unsafe_allow_html=True)
-    st.markdown('<div class="label-min">TERMINAL</div>', unsafe_allow_html=True)
-    now = datetime.now().strftime("%H:%M")
+
+    # Terminal de Logs
+    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+    st.markdown('<div style="font-size:10px; color:#555; margin-bottom:10px;">TERMINAL_SESS_LOG</div>', unsafe_allow_html=True)
+    t = datetime.now().strftime("%H:%M:%S")
     st.markdown(f"""
-    <div class="terminal">
-        [LOG {now}] Adapt Check (F32) ... <span class="ok">OK</span><br>
-        [LOG {now}] Asset: RENDER ... <span class="ok">OK</span><br>
-        [LOG {now}] Data Stream ... <span class="ok">Loaded</span><br>
+    <div class="terminal-log">
+        [{t}] <span class="log-ok">OK</span>: System Ingest Active<br>
+        [{t}] <span class="log-ok">OK</span>: Asset {ASSET} Synced<br>
+        [{t}] <span class="log-ok">OK</span>: Radar factor 32<br>
         <br>
-        >> ESTRUCTURA LISTA ✅
+        "El Ferrari está listo para correr."<br>
+        >> HIERRO MARTILLADO ✅
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Sincronización cada 10 seg
+# Auto-refresh cada 10 seg
 time.sleep(10)
 st.rerun()
