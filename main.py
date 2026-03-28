@@ -5,83 +5,150 @@ import requests
 from datetime import datetime
 import time
 
-# --- 1. CONFIGURACIÓN DE PODER ---
-SALDO_REAL = 144.95
-STOCKS = [
-    {"n": "RENDER (IA)", "p": 124.50, "c": "+2.4%"},
-    {"n": "APPLE", "p": 3450.00, "c": "-0.1%"},
-    {"n": "SAND (Land)", "p": 8.92, "c": "-1.5%"},
-    {"n": "GALA", "p": 0.85, "c": "+5.2%"},
-    {"n": "BITCOIN", "p": 1800000.0, "c": "+0.8%"}
-]
+# --- 1. SETTINGS DE LA GUADAÑA ---
+SALDO_REAL = 142.00  # Según tu descripción del Header
+SESSION_PL = 12.50
+PL_PERCENT = 8.8
+FACTOR = 32
 
-st.set_page_config(layout="wide", page_title="MAHORASHARK ALPHA")
+st.set_page_config(layout="wide", page_title="MAHORASHARK ALPHA V45")
 
-# --- 2. ESTILO TÁCTICO (CORREGIDO) ---
-st.markdown("""
+# --- 2. EL MOTOR VISUAL (CSS CYBERPUNK) ---
+st.markdown(f"""
 <style>
-    [data-testid="stHeader"], [data-testid="stToolbar"] {display: none !important;}
-    .main { background-color: #000000 !important; }
-    .block-container { padding: 10px !important; }
-    * { color: #39FF14 !important; font-family: 'Consolas', monospace !important; }
-    .header-box { text-align: center; border-bottom: 1px solid #111; padding: 15px; }
-    .balance-neon { font-size: 50px; font-weight: bold; text-shadow: 0 0 15px #39FF14; }
-    .panel-label { font-size: 10px; color: #444 !important; text-transform: uppercase; border-bottom: 1px solid #111; }
-    .asset-row { display: flex; justify-content: space-between; font-size: 12px; padding: 4px 0; }
+    /* Fondo Azul Muy Oscuro (Cyberpunk Mode) */
+    [data-testid="stHeader"], [data-testid="stToolbar"] {{display: none !important;}}
+    .stApp {{ background-color: #030a12 !important; color: #e6edf3 !important; font-family: 'Inter', sans-serif; }}
+    
+    /* Barra Superior (Header) */
+    .header-bar {{
+        display: flex; justify-content: space-between; align-items: center;
+        background-color: #000; padding: 10px 20px; border-bottom: 2px solid #00f2ff;
+    }}
+    .header-brand {{ color: #fff; font-weight: bold; font-size: 18px; }}
+    .header-balance {{ color: #39FF14; font-size: 26px; font-weight: bold; text-shadow: 0 0 10px #39FF14; }}
+    .status-tag {{ background: #1a2a1a; color: #39FF14; border: 1px solid #39FF14; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: bold; }}
+
+    /* Paneles con borde Cian */
+    .panel-box {{ border: 1px solid #00f2ff; background: rgba(0, 242, 255, 0.02); padding: 10px; border-radius: 2px; margin-bottom: 10px; }}
+    .panel-title {{ font-size: 11px; color: #00f2ff; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 1px; }}
+    
+    /* Botonera de Activos */
+    .asset-btn {{ 
+        background: #0d1117; border: 1px solid #00f2ff; color: #00f2ff; 
+        padding: 5px; text-align: center; margin: 2px; font-size: 11px; cursor: pointer;
+    }}
+    .asset-active {{ background: #00f2ff; color: #000; font-weight: bold; }}
+
+    /* Terminal y Logs */
+    .terminal-log {{ font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #00f2ff; line-height: 1.2; }}
+    .log-ok {{ color: #39FF14; font-weight: bold; }}
+    
+    /* Rueda de Adaptación (Animación) */
+    .adapt-wheel {{ 
+        width: 120px; height: 120px; border-radius: 50%; border: 4px double #ab7df8;
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto; animation: spin 10s linear infinite;
+        box-shadow: 0 0 20px rgba(171, 125, 248, 0.3);
+    }}
+    @keyframes spin {{ 100% {{ transform: rotate(360deg); }} }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. ESTRUCTURA VISUAL ---
-
-# HEADER
+# --- 3. RENDERIZADO DEL HEADER ---
 st.markdown(f"""
-<div class="header-box">
-    <div style="font-size:10px; color:#222 !important; letter-spacing:3px;">MAHORASHARK // V45.7</div>
-    <div class="balance-neon">${SALDO_REAL:,.2f}</div>
+<div class="header-bar">
+    <div>
+        <span class="header-brand">🦈 MAHORASHARK ALPHA V45</span><br>
+        <span style="font-size:10px; color:#8b949e;">TACTICAL TRADING GUADAÑA | SHARK HUD</span>
+    </div>
+    <div style="text-align:center;">
+        <span style="font-size:10px; color:#fff;">MXN BALANCE:</span><br>
+        <span class="header-balance">${SALDO_REAL:,.2f}</span>
+    </div>
+    <div style="display:flex; gap:5px;">
+        <span class="status-tag">LIVE</span>
+        <span class="status-tag">ONLINE</span>
+        <span class="status-tag" style="border-color:#00f2ff; color:#00f2ff;">FACTOR: {FACTOR}</span>
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
-# COLUMNAS
-c1, c2, c3 = st.columns([1, 2.5, 1])
+st.write("")
 
-with c1:
-    st.markdown('<div class="panel-label">MARKET_MONITOR</div>', unsafe_allow_html=True)
-    for s in STOCKS:
-        color = "#39FF14" if "+" in s['c'] else "#f00"
-        st.markdown(f"""
-        <div class="asset-row">
-            <span>{s['n']}</span>
-            <span style="color:#fff !important;">${s['p']:,}</span>
-            <span style="color:{color} !important;">{s['c']}</span>
-        </div>
-        """, unsafe_allow_html=True)
+# --- 4. ESTRUCTURA DE 3 PANELES ---
+col_left, col_mid, col_right = st.columns([1, 2.5, 1])
 
-with c2:
-    st.markdown('<div class="panel-label">RADAR_TACTICO</div>', unsafe_allow_html=True)
+# PANEL IZQUIERDO: SELECCIÓN DE ACTIVOS
+with col_left:
+    st.markdown('<div class="panel-box">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-title">MARKET ACCIONES</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:10px; color:#fff;">SELECTED ASSET: <span style="color:#00f2ff;">RENDER (IA)</span></div>', unsafe_allow_html=True)
+    
+    # Cuadrícula de botones (clonada de tu descripción)
+    btns = ["RENDER", "APPLE", "SAND", "GALA", "BERM", "OTHERS", "SPLI", "RWIH"]
+    cols_btns = st.columns(2)
+    for i, b in enumerate(btns):
+        with cols_btns[i % 2]:
+            st.markdown(f'<div class="asset-btn {"asset-active" if b=="RENDER" else ""}">{b}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# PANEL CENTRAL: GRÁFICO DE VELAS CIAN/PÚRPURA
+with col_mid:
+    st.markdown('<div class="panel-box" style="height:550px;">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-title">CANDLE CHART: RENDER (IA) - 1D</div>', unsafe_allow_html=True)
+    
     try:
         r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn", timeout=3).json()
-        px = [float(t['price']) for t in r['payload']][::-1]
-        fig = go.Figure(go.Scatter(y=px, fill='tozeroy', line=dict(color='#00f2ff', width=2), fillcolor='rgba(0, 242, 255, 0.02)'))
-        fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', height=450, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_side="right", yaxis_gridcolor="#050505")
+        df = pd.DataFrame(r['payload'])
+        df['price'] = df['price'].astype(float)
+        
+        # Velas Cian (Subida) y Púrpura (Bajada) según tu descripción
+        fig = go.Figure(data=[go.Candlestick(
+            x=df.index, open=df['price'], high=df['price']*1.001,
+            low=df['price']*0.999, close=df['price'],
+            increasing_line_color='#00f2ff', decreasing_line_color='#ab7df8',
+            increasing_fillcolor='#00f2ff', decreasing_fillcolor='#ab7df8'
+        )])
+        fig.update_layout(
+            template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            height=450, margin=dict(l=0, r=40, t=0, b=0), xaxis_visible=False, yaxis_side="right"
+        )
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     except:
-        st.markdown('<div style="color:red !important;">OFFLINE</div>', unsafe_allow_html=True)
+        st.error("RADAR SYNC ERROR")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-with c3:
-    st.markdown('<div class="panel-label">MAHORAGA_LOGS</div>', unsafe_allow_html=True)
-    now = datetime.now().strftime("%H:%M")
-    st.markdown(f"""
-    <div style="font-size:11px;">
-        <span style="color:#00f2ff !important;">[{now}]</span> ADAPT_STEP: 32<br>
-        <span style="color:#00f2ff !important;">[{now}]</span> SYNC: OK<br>
-        <br>
-        <div style="color:#444 !important;">"El Ferrari está listo para correr."</div>
-        <br>
-        >> ESTRUCTURA ADAPTADA ✅<br>
-        >> HIERRO MARTILLADO ✅<br>
-    </div>
-    """, unsafe_allow_html=True)
+# PANEL DERECHO: MOTOR Y TERMINAL
+with col_right:
+    # ADAPTATION ENGINE
+    st.markdown('<div class="panel-box">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-title">ADAPTATION ENGINE (MAHORAGA 32)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="adapt-wheel"><span style="font-size:24px; color:#00f2ff;">☸</span></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # P/L TRACKER
+    st.markdown('<div class="panel-box">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-title">PROFIT/LOSS TRACKER</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="font-size:20px; color:#39FF14; font-weight:bold;">SESSION P/L: +${SESSION_PL:,.2f} (+{PL_PERCENT}%)</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # TERMINAL LOGS (CLON EXACTO DE TUS TEXTOS)
+    st.markdown('<div class="panel-box">', unsafe_allow_html=True)
+    st.markdown('<div class="panel-title">TERMINAL</div>', unsafe_allow_html=True)
+    log_time = datetime.now().strftime("%H:%M")
+    logs = [
+        f"[LOG {log_time}] Adapt Check (Factor 32) ... <span class='log-ok'>OK</span>",
+        f"[LOG {log_time}] Render selected ... <span class='log-ok'>OK</span>",
+        f"[LOG {log_time}] RENDER selected ... <span class='log-ok'>Data Loaded</span>"
+    ]
+    for l in logs:
+        st.markdown(f'<div class="terminal-log">{l}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
-# REFRESH
+# FOOTER WATERMARK
+st.markdown('<div style="text-align:right; font-size:8px; color:#444;">MADE IN USA - 2024</div>', unsafe_allow_html=True)
+
+# REFRESH DINÁMICO
 time.sleep(10)
 st.rerun()
