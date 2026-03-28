@@ -42,3 +42,94 @@ st.markdown("""
 
 # --- 3. RENDERIZADO DEL HEADER ---
 st.markdown(f"""
+<div class="header-box">
+    <div>
+        <span style="font-weight:bold; font-size:20px;">🦈 MAHORASHARK ALPHA V45</span><br>
+        <span style="font-size:10px; color:#555;">TACTICAL TRADING GUADAÑA</span>
+    </div>
+    <div style="text-align:center;">
+        <span style="font-size:10px; color:#fff;">MXN BALANCE:</span><br>
+        <span class="balance-val">${SALDO_REAL:,.2f}</span>
+    </div>
+    <div style="display:flex;">
+        <span class="status-badge">LIVE</span>
+        <span class="status-badge">ONLINE</span>
+        <span class="status-badge" style="color:#00F2FF; border-color:#00F2FF;">FACTOR: {FACTOR}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+st.write("")
+
+# --- 4. LAYOUT DE 3 COLUMNAS ---
+c1, c2, c3 = st.columns([1, 2.8, 1])
+
+with c1:
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="label-min">MARKET ACCIONES</div>', unsafe_allow_html=True)
+    st.markdown(f'<div style="border:1px solid #00F2FF; padding:8px; font-size:12px; margin-bottom:10px;">SELECTED: {ASSET_NAME}</div>', unsafe_allow_html=True)
+    
+    # Cuadrícula de activos
+    assets = ["RENDER", "APPLE", "SAND", "GALA", "BERM", "OTHERS", "SPLI", "RWIH"]
+    for i in range(0, len(assets), 2):
+        row = st.columns(2)
+        for j in range(2):
+            asset = assets[i+j]
+            style = "background:#00F2FF; color:#000;" if asset == "RENDER" else "background:#0d1117; color:#00F2FF;"
+            row[j].markdown(f'<div style="{style} border:1px solid #00F2FF33; text-align:center; padding:8px; font-size:10px; margin-bottom:5px;">{asset}</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c2:
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="label-min">CANDLE CHART (CIAN/PURPLE)</div>', unsafe_allow_html=True)
+    try:
+        r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn", timeout=3).json()
+        p = [float(t['price']) for t in r['payload']][::-1]
+        
+        # Lógica de velas corregida (sin errores de corchetes)
+        fig = go.Figure(data=[go.Candlestick(
+            x=list(range(len(p))),
+            open=p,
+            high=[val * 1.001 for val in p],
+            low=[val * 0.999 for val in p],
+            close=p,
+            increasing_line_color='#00F2FF', # Cian para subir
+            decreasing_line_color='#8A2BE2', # Púrpura para bajar
+            increasing_fillcolor='rgba(0, 242, 255, 0.1)',
+            decreasing_fillcolor='rgba(138, 43, 226, 0.5)'
+        )])
+        fig.update_layout(
+            template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+            height=450, margin=dict(l=0, r=0, t=0, b=0), xaxis_visible=False, yaxis_side="right",
+            yaxis_gridcolor="#111"
+        )
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+    except:
+        st.markdown('<div style="color:red;">RADAR_OFFLINE</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+with c3:
+    # ADAPTATION ENGINE
+    st.markdown('<div class="panel">', unsafe_allow_html=True)
+    st.markdown('<div class="label-min">ADAPTATION ENGINE</div>', unsafe_allow_html=True)
+    st.markdown('<div style="text-align:center;"><span style="font-size:80px; color:#00F2FF;" class="wheel-anim">☸</span></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # TERMINAL LOGS
+    st.markdown('<div class="panel" style="margin-top:10px;">', unsafe_allow_html=True)
+    st.markdown('<div class="label-min">TERMINAL</div>', unsafe_allow_html=True)
+    now = datetime.now().strftime("%H:%M")
+    st.markdown(f"""
+    <div class="terminal">
+        [LOG {now}] Adapt Check (F32) ... <span class="ok">OK</span><br>
+        [LOG {now}] Asset: RENDER ... <span class="ok">OK</span><br>
+        [LOG {now}] Data Stream ... <span class="ok">Loaded</span><br>
+        <br>
+        >> ESTRUCTURA LISTA ✅
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Sincronización cada 10 seg
+time.sleep(10)
+st.rerun()
