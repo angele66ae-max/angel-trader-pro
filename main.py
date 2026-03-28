@@ -1,155 +1,161 @@
 import streamlit as st
 import plotly.graph_objects as go
-import requests
-import time
+import pandas as pd
+import numpy as np
 from datetime import datetime
+import time
 
-# --- 1. NÚCLEO DE DATOS ---
-SALDO_REAL = 144.95
-FACTOR = 32
-ASSET = "RENDER (IA)"
-
+# --- 1. SETUP DE PODER ---
 st.set_page_config(layout="wide", page_title="MAHORASHARK ALPHA V60", page_icon="🦈")
 
-# --- 2. CSS DE ALTA INGENIERÍA (CLONACIÓN VISUAL) ---
+# --- 2. CSS DE CLONACIÓN VISUAL (ESTILO GEMINI GENERATED) ---
 st.markdown("""
 <style>
-    /* Fondo Ultra Dark y Reset */
+    /* Fondo Azul Profundo / Negro */
     [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
-    .stApp { background-color: #05070A !important; color: #E6EDF3 !important; font-family: 'Inter', sans-serif; }
+    .stApp { 
+        background-color: #0b111a !important; 
+        color: #e0e0e0 !important; 
+        font-family: 'Inter', sans-serif;
+    }
     
-    /* EFECTO CRISTAL Y BORDES NEÓN SUTILES */
-    .glass-panel {
-        background: rgba(13, 17, 23, 0.7);
-        backdrop-filter: blur(15px);
-        border: 1px solid rgba(0, 242, 255, 0.1);
-        border-radius: 4px;
-        padding: 20px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-        margin-bottom: 15px;
+    /* PANELES DE CRISTAL (Glassmorphism) */
+    .glass-card {
+        background: rgba(16, 24, 39, 0.8);
+        border: 1px solid rgba(0, 242, 255, 0.2);
+        border-radius: 8px;
+        padding: 15px;
+        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(10px);
     }
 
-    /* HEADER HUD (NAVBAR) */
-    .nav-hud {
+    /* HEADER TÁCTICO */
+    .header-container {
         display: flex; justify-content: space-between; align-items: center;
-        background: #000; padding: 12px 40px;
-        border-bottom: 1px solid rgba(0, 242, 255, 0.5);
-        box-shadow: 0 0 30px rgba(0, 242, 255, 0.1);
+        padding: 15px 30px; background: rgba(10, 15, 25, 0.95);
+        border-bottom: 2px solid #00F2FF; margin-bottom: 20px;
     }
-    .main-balance {
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 42px; color: #39FF14; font-weight: 800;
-        text-shadow: 0 0 20px rgba(57, 255, 20, 0.5), 0 0 40px rgba(57, 255, 20, 0.2);
+    .balance-glow {
+        color: #39FF14; font-size: 38px; font-weight: 800;
+        text-shadow: 0 0 15px rgba(57, 255, 20, 0.6);
+        font-family: 'Roboto Mono', monospace;
     }
 
-    /* TERMINAL FÓSFORO (LOGS) */
-    .terminal-box {
-        background: #000; padding: 15px; border-left: 2px solid #00F2FF;
-        font-family: 'JetBrains Mono', monospace; font-size: 10px;
-        color: #00F2FF; height: 180px; overflow: hidden;
-        line-height: 1.6;
+    /* MARKET SELECTOR PULIDO */
+    .market-item {
+        padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);
+        display: flex; justify-content: space-between; font-size: 13px;
     }
-    .log-ok { color: #39FF14; text-shadow: 0 0 8px #39FF14; }
+    .market-item:hover { background: rgba(0, 242, 255, 0.1); cursor: pointer; }
+    .selected-asset { border-left: 3px solid #00F2FF; background: rgba(0, 242, 255, 0.15); }
 
-    /* RUEDA DE ADAPTACIÓN (SVG ANIMADO PRO) */
-    .wheel-container { text-align: center; padding: 25px 0; }
-    .mahoraga-wheel {
-        width: 180px; animation: spin-gear 25s linear infinite;
-        filter: drop-shadow(0 0 15px rgba(138, 43, 226, 0.6));
+    /* TERMINAL DE GRADO MILITAR */
+    .terminal-text {
+        font-family: 'JetBrains Mono', monospace; font-size: 11px;
+        color: #00F2FF; line-height: 1.5;
     }
-    @keyframes spin-gear { 100% { transform: rotate(360deg); } }
+    .status-ok { color: #39FF14; font-weight: bold; }
 
-    /* MARKET SELECTOR */
-    .market-row {
-        display: flex; justify-content: space-between; padding: 12px;
-        border-bottom: 1px solid rgba(255,255,255,0.03); font-size: 11px;
+    /* RUEDA DE ADAPTACIÓN (ANIMACIÓN PURA) */
+    .wheel-container { text-align: center; padding: 20px 0; }
+    .adaptation-wheel {
+        width: 170px; animation: spin 20s linear infinite;
+        filter: drop-shadow(0 0 10px #8A2BE2);
     }
-    .market-active { background: rgba(0, 242, 255, 0.1); border-left: 3px solid #00F2FF; }
+    @keyframes spin { 100% { transform: rotate(360deg); } }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. RENDERIZADO DEL HEADER ---
+# --- 3. BARRA DE NAVEGACIÓN (HEADER) ---
 st.markdown(f"""
-<div class="nav-hud">
-    <div style="line-height: 1;">
-        <span style="letter-spacing:5px; font-weight:900; font-size:20px; color:#00F2FF;">MAHORASHARK</span><br>
-        <small style="color:#444; font-family:monospace; font-size:10px;">TACTICAL HUD V60.0 | LIVE</small>
+<div class="header-container">
+    <div>
+        <span style="color:#00F2FF; font-weight:900; font-size:22px; letter-spacing:3px;">MAHORASHARK ALPHA V60</span><br>
+        <span style="color:#555; font-size:10px;">TACTICAL TRADING GUADAÑA</span>
     </div>
     <div style="text-align:center;">
-        <small style="color:#8b949e; letter-spacing:2px; font-size:9px;">TOTAL MXN BALANCE</small><br>
-        <span class="main-balance">${SALDO_REAL:,.2f}</span>
+        <span style="color:#8b949e; font-size:10px; letter-spacing:1px;">MXN BALANCE:</span><br>
+        <span class="balance-glow">$144.95</span>
     </div>
-    <div style="display:flex; gap:15px;">
-        <div style="border:1px solid #39FF14; color:#39FF14; padding:2px 12px; font-size:10px; font-weight:bold;">ENGINE_ACTIVE</div>
-        <div style="border:1px solid #00F2FF; color:#00F2FF; padding:2px 12px; font-size:10px; font-weight:bold;">F: {FACTOR}</div>
+    <div style="display:flex; gap:10px;">
+        <div style="border:1px solid #39FF14; color:#39FF14; padding:5px 15px; font-size:11px; font-weight:bold;">LIVE | ONLINE</div>
+        <div style="border:1px solid #00F2FF; color:#00F2FF; padding:5px 15px; font-size:11px; font-weight:bold;">FACTOR: 32</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-st.write("")
+# --- 4. ESTRUCTURA DE 3 COLUMNAS ---
+col_side, col_main, col_engine = st.columns([1.1, 3, 1.2])
 
-# --- 4. CUERPO DE LA INTERFAZ (DENSIDAD DE INFO) ---
-col_mkt, col_chart, col_engine = st.columns([1, 2.8, 1])
-
-with col_mkt:
-    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:10px; color:#444; letter-spacing:2px; margin-bottom:15px;">MARKET_ASSETS</p>', unsafe_allow_html=True)
-    assets = [("RENDER (IA)", "+2.4%", True), ("BTC", "+0.8%", False), ("SAND", "-1.5%", False), ("GALA", "+5.2%", False), ("APPLE", "-0.1%", False)]
-    for n, ch, active in assets:
-        active_cls = "market-active" if active else ""
-        st.markdown(f'<div class="market-row {active_cls}"><span>{n}</span><span style="color:#39FF14;">{ch}</span></div>', unsafe_allow_html=True)
+with col_side:
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<small style="color:#555;">MARKET ACCIONES</small>', unsafe_allow_html=True)
+    st.markdown('<div style="background:#070b11; padding:10px; border:1px solid #00F2FF; margin:10px 0; font-size:12px;">SELECTED ASSET: <span style="color:#00F2FF;">RENDER (IA)</span></div>', unsafe_allow_html=True)
+    
+    assets = [
+        ("RENDER", "+2.4%", True), ("APPLE", "-0.1%", False), 
+        ("SAND", "-1.5%", False), ("GALA", "+5.2%", False),
+        ("RENDER", " ", False), ("CHRA", " ", False), ("EMM", " ", False)
+    ]
+    
+    for name, change, active in assets:
+        cls = "selected-asset" if active else ""
+        st.markdown(f'<div class="market-item {cls}"><span>{name}</span><span style="color:#39FF14;">{change}</span></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-with col_chart:
-    st.markdown('<div class="glass-panel" style="height:580px;">', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:10px; color:#444; letter-spacing:2px;">RADAR_VELAS_V60</p>', unsafe_allow_html=True)
-    try:
-        # Petición real para que el radar se mueva
-        r = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn", timeout=3).json()
-        p = [float(t['price']) for t in r['payload']][::-1]
-        
-        # MOTOR DE VELAS: CIAN (#00F2FF) / PÚRPURA (#8A2BE2)
-        fig = go.Figure(data=[go.Candlestick(
-            x=list(range(len(p))), open=p, high=[x*1.0012 for x in p],
-            low=[x*0.9988 for x in p], close=p,
-            increasing_line_color='#00F2FF', decreasing_line_color='#8A2BE2',
-            increasing_fillcolor='rgba(0, 242, 255, 0.3)', decreasing_fillcolor='rgba(138, 43, 226, 0.8)'
-        )])
-        
-        # BANDAS DE BOLLINGER (SOMBREADO)
-        fig.add_trace(go.Scatter(y=[x*1.007 for x in p], line=dict(color='rgba(0,242,255,0.05)', width=1), fill='tonexty', fillcolor='rgba(0,242,255,0.02)'))
-        fig.add_trace(go.Scatter(y=[x*0.993 for x in p], line=dict(color='rgba(0,242,255,0.05)', width=1)))
+with col_main:
+    st.markdown('<div class="glass-card" style="height:620px;">', unsafe_allow_html=True)
+    st.markdown('<small style="color:#555;">CANDLE CHART - RENDER (IA) 1D</small>', unsafe_allow_html=True)
+    
+    # GENERACIÓN DE DATOS DE VELAS (Simulación para el clon)
+    df = pd.DataFrame({
+        'open': np.random.uniform(2100, 2300, 50),
+        'high': np.random.uniform(2300, 2400, 50),
+        'low': np.random.uniform(2000, 2100, 50),
+        'close': np.random.uniform(2100, 2300, 50)
+    })
 
-        fig.update_layout(
-            template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-            height=500, margin=dict(l=0, r=40, t=10, b=0), xaxis_visible=False, yaxis_side="right",
-            yaxis_gridcolor="rgba(255,255,255,0.02)"
-        )
-        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
-    except:
-        st.error("RADAR_SYNC_LOST")
+    fig = go.Figure(data=[go.Candlestick(
+        x=list(range(len(df))),
+        open=df['open'], high=df['high'], low=df['low'], close=df['close'],
+        increasing_line_color='#00F2FF', decreasing_line_color='#8A2BE2', # Colores Gemini
+        increasing_fillcolor='rgba(0, 242, 255, 0.4)', decreasing_fillcolor='rgba(138, 43, 226, 0.7)'
+    )])
+
+    # Bandas de Bollinger (El "sombreado" que pediste)
+    fig.add_trace(go.Scatter(y=df['high']+20, line=dict(color='rgba(0,242,255,0.1)', width=1), name="B-Upper"))
+    fig.add_trace(go.Scatter(y=df['low']-20, line=dict(color='rgba(0,242,255,0.1)', width=1), fill='tonexty', fillcolor='rgba(0,242,255,0.02)'))
+
+    fig.update_layout(
+        template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+        height=550, margin=dict(l=10, r=10, t=10, b=10),
+        xaxis_visible=False, yaxis_side="right",
+        yaxis_gridcolor="rgba(255,255,255,0.05)"
+    )
+    st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col_engine:
-    # ADAPTATION ENGINE PANEL
-    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
-    st.markdown('<p style="font-size:10px; color:#444; letter-spacing:2px;">ENGINE_CORE</p>', unsafe_allow_html=True)
+    # ADAPTATION ENGINE
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<small style="color:#555;">ADAPTATION ENGINE (MAHORAGA)</small>', unsafe_allow_html=True)
     st.markdown(f"""
     <div class="wheel-container">
-        <img src="https://i.imgur.com/83p1y9N.png" class="mahoraga-wheel">
-        <p style="font-family:monospace; font-size:10px; color:#8A2BE2; margin-top:20px; letter-spacing:3px;">MAHORAGA_LEVEL: {FACTOR}</p>
+        <img src="https://i.imgur.com/83p1y9N.png" class="adaptation-wheel">
+        <p style="color:#8A2BE2; font-size:12px; margin-top:15px; font-weight:bold;">SYNCING: 14s</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # TERMINAL PANEL
-    st.markdown('<div class="glass-panel">', unsafe_allow_html=True)
+    # TERMINAL SESS
+    st.markdown('<div class="glass-card" style="margin-top:15px;">', unsafe_allow_html=True)
+    st.markdown('<small style="color:#555;">TERMINAL_LOGS</small>', unsafe_allow_html=True)
     t = datetime.now().strftime("%H:%M:%S")
     st.markdown(f"""
-    <div class="terminal-box">
-        [{t}] <span class="log-ok">[OK]</span>: HUD_SYNC_SUCCESS<br>
-        [{t}] <span class="log-ok">[OK]</span>: {ASSET} RADAR ACTIVE<br>
-        [{t}] <span class="log-ok">[OK]</span>: ENGINE_V60_STABLE<br>
+    <div class="terminal-text">
+        [{t}] <span class="status-ok">OK</span>: System Link Stable<br>
+        [{t}] <span class="status-ok">OK</span>: Asset Synced (RENDER)<br>
+        [{t}] <span class="status-ok">OK</span>: Adaptation Factor 32<br>
         <br>
         "El Ferrari está listo."<br>
         >> HIERRO MARTILLADO ✅
@@ -157,6 +163,6 @@ with col_engine:
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# AUTO-REFRESH TÁCTICO
-time.sleep(15)
+# Auto-refresh para simular el "Ferrari" en marcha
+time.sleep(10)
 st.rerun()
