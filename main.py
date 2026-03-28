@@ -4,30 +4,31 @@ import requests
 import time
 from datetime import datetime
 
-# --- 1. CONFIGURACIÓN DE NÚCLEO ---
+# --- 1. SETTINGS DE ALTA PRIORIDAD ---
 SALDO_REAL = 144.95
 FACTOR = 32
 ASSET = "RENDER (IA)"
 
-st.set_page_config(layout="wide", page_title="MAHORASHARK V50")
+st.set_page_config(layout="wide", page_title="MAHORASHARK V51", page_icon="🦈")
 
-# --- 2. EL MARTILLO: CSS DE GRADO MILITAR (CERO ESTILO WEB) ---
+# --- 2. EL MARTILLO: CSS DE GRADO MILITAR (SIN FUGAS) ---
 st.markdown(f"""
 <style>
-    /* Reset de UI y Fondo Dark Mode Profundo #0A0E14 */
+    /* Reset de UI y Fondo Dark #0A0E14 */
     [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] {{display: none !important;}}
     .stApp {{ background-color: #0A0E14 !important; color: #00F2FF !important; }}
     
-    /* Paneles con Profundidad y Capas (Glassmorphism) */
+    /* Paneles Glassmorphism */
     .glass-card {{
-        background: rgba(13, 17, 23, 0.85);
-        border: 1px solid rgba(0, 242, 255, 0.1);
+        background: rgba(13, 17, 23, 0.9);
+        border: 1px solid rgba(0, 242, 255, 0.15);
         padding: 20px;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.9), inset 0 0 20px rgba(0, 242, 255, 0.02);
+        border-radius: 2px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.9);
         margin-bottom: 15px;
     }}
 
-    /* Header Táctico Estrecho */
+    /* Header Táctico */
     .shark-hud {{
         display: flex; justify-content: space-between; align-items: center;
         background: #000; padding: 12px 30px;
@@ -36,15 +37,10 @@ st.markdown(f"""
     }}
     .balance-glow {{
         font-family: 'Courier New', monospace;
-        font-size: 42px; color: #39FF14; font-weight: bold;
-        text-shadow: 0 0 20px rgba(57, 255, 20, 0.7);
+        font-size: 40px; color: #39FF14; font-weight: bold;
+        text-shadow: 0 0 15px rgba(57, 255, 20, 0.6);
     }}
 
-    /* Botones de Activo (Sin estilo Streamlit) */
+    /* Listado de Activos */
     .asset-row {{
-        padding: 12px; border-bottom: 1px solid #1A1F26;
-        font-family: 'Courier New', monospace; font-size: 11px;
-        display: flex; justify-content: space-between; transition: 0.3s;
-    }}
-    .asset-row:hover {{ background: rgba(0, 242, 255, 0.1); border-left: 4px solid #00F2FF; }}
-    .active-row {{ background: rgba(0, 242, 255, 0.15); border-left: 4px solid #00F2
+        padding: 12px; border-
