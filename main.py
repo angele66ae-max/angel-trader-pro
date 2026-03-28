@@ -5,164 +5,170 @@ import numpy as np
 from datetime import datetime
 import time
 
-# --- 1. SETUP DE PODER ---
-st.set_page_config(layout="wide", page_title="MAHORASHARK ALPHA V60", page_icon="🦈")
+# --- 1. CONFIGURACIÓN DEL SISTEMA (SHARK CORE) ---
+st.set_page_config(layout="wide", page_title="MAHORASHARK ALPHA V46", page_icon="🦈")
 
-# --- 2. CSS DE CLONACIÓN VISUAL (ESTILO GEMINI GENERATED) ---
+# --- 2. EL MARTILLO: CSS "GLOW UI" (ESTÉTICA CYBER-INSTITUTIONAL) ---
 st.markdown("""
 <style>
-    /* Fondo Azul Profundo / Negro */
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;900&display=swap');
+
+    /* Reset y Fondo Deep Navy #05070A */
     [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] { display: none !important; }
-    .stApp { 
-        background-color: #0b111a !important; 
-        color: #e0e0e0 !important; 
-        font-family: 'Inter', sans-serif;
-    }
-    
-    /* PANELES DE CRISTAL (Glassmorphism) */
+    .stApp { background-color: #05070A !important; color: #E6EDF3 !important; font-family: 'Inter', sans-serif; }
+
+    /* PANELES DE CRISTAL TÁCTICO */
     .glass-card {
-        background: rgba(16, 24, 39, 0.8);
-        border: 1px solid rgba(0, 242, 255, 0.2);
-        border-radius: 8px;
+        background: rgba(10, 15, 25, 0.8);
+        border: 1px solid rgba(0, 242, 255, 0.15);
+        border-radius: 4px;
         padding: 15px;
-        box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
-        backdrop-filter: blur(10px);
+        box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+        backdrop-filter: blur(12px);
+        margin-bottom: 12px;
     }
 
-    /* HEADER TÁCTICO */
-    .header-container {
+    /* BARRA SUPERIOR (TOP HUD) */
+    .top-hud {
         display: flex; justify-content: space-between; align-items: center;
-        padding: 15px 30px; background: rgba(10, 15, 25, 0.95);
-        border-bottom: 2px solid #00F2FF; margin-bottom: 20px;
+        padding: 10px 40px; background: #000; border-bottom: 2px solid #00F2FF;
+        box-shadow: 0 0 25px rgba(0, 242, 255, 0.2);
     }
-    .balance-glow {
-        color: #39FF14; font-size: 38px; font-weight: 800;
-        text-shadow: 0 0 15px rgba(57, 255, 20, 0.6);
-        font-family: 'Roboto Mono', monospace;
+    .balance-neon {
+        font-family: 'JetBrains Mono', monospace; font-size: 36px; color: #39FF14; font-weight: 800;
+        text-shadow: 0 0 15px rgba(57, 255, 20, 0.5);
     }
 
-    /* MARKET SELECTOR PULIDO */
-    .market-item {
-        padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);
-        display: flex; justify-content: space-between; font-size: 13px;
+    /* BOTONES DE ACTIVOS (CONTROL DE GUERRA) */
+    .asset-btn {
+        background: rgba(0, 242, 255, 0.05); padding: 8px; border: 1px solid rgba(0,242,255,0.1);
+        margin-bottom: 6px; display: flex; justify-content: space-between; font-size: 11px;
     }
-    .market-item:hover { background: rgba(0, 242, 255, 0.1); cursor: pointer; }
-    .selected-asset { border-left: 3px solid #00F2FF; background: rgba(0, 242, 255, 0.15); }
+    .asset-active { border-left: 4px solid #00F2FF; background: rgba(0, 242, 255, 0.15); }
 
-    /* TERMINAL DE GRADO MILITAR */
-    .terminal-text {
-        font-family: 'JetBrains Mono', monospace; font-size: 11px;
-        color: #00F2FF; line-height: 1.5;
+    /* RUEDA DE ADAPTACIÓN (ANIMACIÓN MAHORAGA) */
+    .wheel-box { text-align: center; padding: 15px 0; }
+    .wheel-svg {
+        width: 160px; animation: spin-gear 18s linear infinite;
+        filter: drop-shadow(0 0 12px rgba(138, 43, 226, 0.7));
     }
-    .status-ok { color: #39FF14; font-weight: bold; }
+    @keyframes spin-gear { 100% { transform: rotate(360deg); } }
 
-    /* RUEDA DE ADAPTACIÓN (ANIMACIÓN PURA) */
-    .wheel-container { text-align: center; padding: 20px 0; }
-    .adaptation-wheel {
-        width: 170px; animation: spin 20s linear infinite;
-        filter: drop-shadow(0 0 10px #8A2BE2);
+    /* TERMINAL DE LOGS */
+    .terminal-output {
+        font-family: 'JetBrains Mono', monospace; font-size: 10px; color: #00F2FF;
+        height: 140px; overflow-y: hidden; line-height: 1.5; padding: 10px;
+        background: rgba(0,0,0,0.5); border-left: 2px solid #00F2FF;
     }
-    @keyframes spin { 100% { transform: rotate(360deg); } }
+    .log-tag { color: #39FF14; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
 
-# --- 3. BARRA DE NAVEGACIÓN (HEADER) ---
+# --- 3. BARRA SUPERIOR: MAHORASHARK ALPHA V46 ---
 st.markdown(f"""
-<div class="header-container">
-    <div>
-        <span style="color:#00F2FF; font-weight:900; font-size:22px; letter-spacing:3px;">MAHORASHARK ALPHA V60</span><br>
-        <span style="color:#555; font-size:10px;">TACTICAL TRADING GUADAÑA</span>
+<div class="top-hud">
+    <div style="display:flex; align-items:center; gap:15px;">
+        <span style="font-size:30px;">🦈</span>
+        <div style="line-height:1;">
+            <span style="font-weight:900; letter-spacing:4px; font-size:18px; color:#00F2FF;">MAHORASHARK ALPHA V46</span><br>
+            <span style="font-size:9px; color:#555; letter-spacing:2px;">TACTICAL TRADING GUADAÑA</span>
+        </div>
     </div>
     <div style="text-align:center;">
-        <span style="color:#8b949e; font-size:10px; letter-spacing:1px;">MXN BALANCE:</span><br>
-        <span class="balance-glow">$144.95</span>
+        <small style="color:#8b949e; letter-spacing:1px; font-size:9px;">MXN BALANCE</small><br>
+        <span class="balance-neon">$142.00</span>
     </div>
-    <div style="display:flex; gap:10px;">
-        <div style="border:1px solid #39FF14; color:#39FF14; padding:5px 15px; font-size:11px; font-weight:bold;">LIVE | ONLINE</div>
-        <div style="border:1px solid #00F2FF; color:#00F2FF; padding:5px 15px; font-size:11px; font-weight:bold;">FACTOR: 32</div>
+    <div style="display:flex; gap:12px;">
+        <div style="border:1px solid #39FF14; color:#39FF14; padding:3px 12px; font-size:10px; font-weight:bold;">LIVE | ONLINE</div>
+        <div style="border:1px solid #00F2FF; color:#00F2FF; padding:3px 12px; font-size:10px; font-weight:bold;">FACTOR: 32</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- 4. ESTRUCTURA DE 3 COLUMNAS ---
-col_side, col_main, col_engine = st.columns([1.1, 3, 1.2])
+st.write("")
 
-with col_side:
+# --- 4. ESTRUCTURA DE 3 COLUMNAS ---
+c1, c2, c3 = st.columns([1, 2.8, 1.1])
+
+# COLUMNA 1: CONTROL DE ACTIVOS
+with c1:
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<small style="color:#555;">MARKET ACCIONES</small>', unsafe_allow_html=True)
-    st.markdown('<div style="background:#070b11; padding:10px; border:1px solid #00F2FF; margin:10px 0; font-size:12px;">SELECTED ASSET: <span style="color:#00F2FF;">RENDER (IA)</span></div>', unsafe_allow_html=True)
+    st.markdown('<small style="color:#555; letter-spacing:1px;">MARKET ACCIONES</small>', unsafe_allow_html=True)
+    st.markdown(f'''
+    <div style="background:#000; padding:10px; border:1px solid #00F2FF; margin:10px 0;">
+        <small style="color:#555;">SELECTED ASSET:</small><br>
+        <b style="color:#00F2FF; font-size:14px;">RENDER (IA) - $2,138.27</b>
+    </div>
+    ''', unsafe_allow_html=True)
     
-    assets = [
-        ("RENDER", "+2.4%", True), ("APPLE", "-0.1%", False), 
-        ("SAND", "-1.5%", False), ("GALA", "+5.2%", False),
-        ("RENDER", " ", False), ("CHRA", " ", False), ("EMM", " ", False)
-    ]
-    
-    for name, change, active in assets:
-        cls = "selected-asset" if active else ""
-        st.markdown(f'<div class="market-item {cls}"><span>{name}</span><span style="color:#39FF14;">{change}</span></div>', unsafe_allow_html=True)
+    assets = [("RENDER", "+2.4%", True), ("APPLE", "-0.1%", False), ("SAND", "-1.5%", False), ("GALA", "+5.2%", False), ("CHRA", " ", False), ("EMM", " ", False), ("GETI", " ", False)]
+    for n, ch, active in assets:
+        cls = "asset-active" if active else ""
+        st.markdown(f'<div class="asset-btn {cls}"><span>{n}</span><span style="color:#39FF14;">{ch}</span></div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-with col_main:
-    st.markdown('<div class="glass-card" style="height:620px;">', unsafe_allow_html=True)
-    st.markdown('<small style="color:#555;">CANDLE CHART - RENDER (IA) 1D</small>', unsafe_allow_html=True)
+# COLUMNA 2: EL CORAZÓN (CHART ENGINE)
+with c2:
+    st.markdown('<div class="glass-card" style="height:580px;">', unsafe_allow_html=True)
+    st.markdown('<small style="color:#555;">CANDLE CHART - RENDER (IA) · 1D · PBRINGE</small>', unsafe_allow_html=True)
     
-    # GENERACIÓN DE DATOS DE VELAS (Simulación para el clon)
-    df = pd.DataFrame({
-        'open': np.random.uniform(2100, 2300, 50),
-        'high': np.random.uniform(2300, 2400, 50),
-        'low': np.random.uniform(2000, 2100, 50),
-        'close': np.random.uniform(2100, 2300, 50)
-    })
-
+    # Simulación de velas neón
+    df = pd.DataFrame({'o':[10,12,11,14,13], 'h':[13,15,12,16,15], 'l':[9,11,10,13,12], 'c':[12,11,14,13,16]})
     fig = go.Figure(data=[go.Candlestick(
-        x=list(range(len(df))),
-        open=df['open'], high=df['high'], low=df['low'], close=df['close'],
-        increasing_line_color='#00F2FF', decreasing_line_color='#8A2BE2', # Colores Gemini
+        x=[1,2,3,4,5], open=df.o, high=df.h, low=df.l, close=df.c,
+        increasing_line_color='#00F2FF', decreasing_line_color='#8A2BE2',
         increasing_fillcolor='rgba(0, 242, 255, 0.4)', decreasing_fillcolor='rgba(138, 43, 226, 0.7)'
     )])
-
-    # Bandas de Bollinger (El "sombreado" que pediste)
-    fig.add_trace(go.Scatter(y=df['high']+20, line=dict(color='rgba(0,242,255,0.1)', width=1), name="B-Upper"))
-    fig.add_trace(go.Scatter(y=df['low']-20, line=dict(color='rgba(0,242,255,0.1)', width=1), fill='tonexty', fillcolor='rgba(0,242,255,0.02)'))
+    
+    # Sombreado Bollinger
+    fig.add_trace(go.Scatter(y=[15,16,15,17,16], line=dict(color='rgba(0,242,255,0.05)', width=1), fill='tonexty', fillcolor='rgba(0,242,255,0.01)'))
 
     fig.update_layout(
         template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
-        height=550, margin=dict(l=10, r=10, t=10, b=10),
-        xaxis_visible=False, yaxis_side="right",
-        yaxis_gridcolor="rgba(255,255,255,0.05)"
+        height=500, margin=dict(l=0, r=40, t=10, b=0), xaxis_visible=False, yaxis_side="right",
+        yaxis_gridcolor="rgba(255,255,255,0.02)"
     )
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
     st.markdown('</div>', unsafe_allow_html=True)
 
-with col_engine:
-    # ADAPTATION ENGINE
+# COLUMNA 3: ADAPTATION ENGINE
+with c3:
+    # Módulo Rueda
     st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    st.markdown('<small style="color:#555;">ADAPTATION ENGINE (MAHORAGA)</small>', unsafe_allow_html=True)
-    st.markdown(f"""
-    <div class="wheel-container">
-        <img src="https://i.imgur.com/83p1y9N.png" class="adaptation-wheel">
-        <p style="color:#8A2BE2; font-size:12px; margin-top:15px; font-weight:bold;">SYNCING: 14s</p>
+    st.markdown('<small style="color:#555;">ADAPTATION ENGINE (MAHORAGA 32)</small>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="wheel-box">
+        <img src="https://i.imgur.com/83p1y9N.png" class="wheel-svg">
+        <p style="color:#8A2BE2; font-size:11px; margin-top:10px; font-weight:bold; letter-spacing:2px;">NEXT ADAPTATION CHECK: 14s</p>
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-    # TERMINAL SESS
-    st.markdown('<div class="glass-card" style="margin-top:15px;">', unsafe_allow_html=True)
-    st.markdown('<small style="color:#555;">TERMINAL_LOGS</small>', unsafe_allow_html=True)
+    # Módulo P/L
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown(f"""
+    <small style="color:#555;">PROFIT / LOSS TRACKER</small><br>
+    <span style="font-size:18px; color:#39FF14; font-weight:bold;">SESSION P/L: +$12.50 (+8.8%)</span><br>
+    <small style="color:#444; font-size:9px;">TRADE HISTORY: last 10 steps</small>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # Módulo Terminal
+    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    st.markdown('<small style="color:#555;">TERMINAL</small>', unsafe_allow_html=True)
     t = datetime.now().strftime("%H:%M:%S")
     st.markdown(f"""
-    <div class="terminal-text">
-        [{t}] <span class="status-ok">OK</span>: System Link Stable<br>
-        [{t}] <span class="status-ok">OK</span>: Asset Synced (RENDER)<br>
-        [{t}] <span class="status-ok">OK</span>: Adaptation Factor 32<br>
+    <div class="terminal-output">
+        [{t}] <span class="log-tag">[OK]</span> Adapt Check (Factor 32)<br>
+        [{t}] <span class="log-tag">[OK]</span> RENDER selected ... Data Loaded<br>
+        [{t}] <span class="log-tag">[OK]</span> SMA/EMA Indicators Sync<br>
+        [{t}] <span class="log-tag">[OK]</span> Bollinger Bands 30090 ... OK<br>
         <br>
-        "El Ferrari está listo."<br>
-        >> HIERRO MARTILLADO ✅
+        >> EL FERRARI ESTÁ LISTO ✅
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Auto-refresh para simular el "Ferrari" en marcha
-time.sleep(10)
+# --- 5. CICLO DE VIDA (14s) ---
+time.sleep(14)
 st.rerun()
