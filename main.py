@@ -109,4 +109,4 @@ with c3:
 
 # Autorefresco para que sea dinámica
 time.sleep(10)
-st
+st.rerun()
