@@ -8,7 +8,7 @@ from datetime import datetime
 # --- 1. NÚCLEO DEPARDADOR (142 MXN BASE) ---
 API_KEY = "qdgvoUmYcB"
 API_SECRET = "c764dc6961cd5d1a443cbc677fe39597"
-CAPITAL_ACTUAL = 142.0  # Tu nuevo poder de fuego
+CAPITAL_ACTUAL = 142.0  # Tu nuevo poder de fuego de image_4.png
 META_10K = 10000.0
 FACTOR_MAHORA = 32      # Nivel de adaptación agresiva
 
@@ -85,7 +85,7 @@ col_targets, col_radar, col_mahoraga = st.columns([1.2, 2.2, 1])
 
 with col_targets:
     st.markdown("### 🏹 PRESAS DETECTADAS")
-    # Mercado adaptado con el nuevo capital
+    # Mercado adaptado con el nuevo capital de image_0.png
     presas = [
         {"n": "RENDER", "p": 124.5, "c": "+2.4%"},
         {"n": "APPLE", "p": 3450.0, "c": "0.0%"},
@@ -108,6 +108,7 @@ with col_radar:
     try:
         mkt_data = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn", timeout=10).json()
         precios = [float(t['price']) for t in mkt_data['payload']][::-1]
+        # Usando estilo visual de image_1.png
         fig = go.Figure(go.Scatter(y=precios, fill='tozeroy', line=dict(color='#00f2ff', width=3), fillcolor='rgba(0, 242, 255, 0.05)'))
         fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
                           height=400, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False)
@@ -120,6 +121,7 @@ with col_mahoraga:
     faltante = META_10K - mxn_live
     pasos = faltante / FACTOR_MAHORA
     
+    # Basado en la terminal de image_3.png y el concepto de Mahoraga
     st.markdown(f"""
     <div style="font-size:12px; font-family:monospace;">
         <span style="color:#ab7df8;">[SISTEMA]</span> Girando la rueda...<br>
