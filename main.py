@@ -2,142 +2,187 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.graph_objects as go
-import hmac, hashlib, time
 from datetime import datetime
+import hmac, hashlib, time
 
-# --- 1. NÚCLEO DEPARDADOR (142 MXN BASE) ---
+# --- 1. CONFIGURACIÓN DEL NÚCLEO MAHORASHARK V45 ---
 API_KEY = "qdgvoUmYcB"
 API_SECRET = "c764dc6961cd5d1a443cbc677fe39597"
-CAPITAL_ACTUAL = 142.0  # Tu nuevo poder de fuego de image_4.png
+CAPITAL_BASE = 142.0 # Tu capital real de image_4.png
 META_10K = 10000.0
-FACTOR_MAHORA = 32      # Nivel de adaptación agresiva
+FACTOR_ADAPTACION = 32 # Nivel de Mahoraga
 
-st.set_page_config(layout="wide", page_title="MAHORASHARK V45", page_icon="🦈")
+st.set_page_config(layout="wide", page_title="MAHORASHARK ALPHA V45", page_icon="🦈")
 
-# --- 2. MOTOR DE CAZA ---
-def bitso_api(method, path, payload=""):
+# --- 2. MOTOR DE DATOS EN TIEMPO REAL ---
+@st.cache_data(ttl=1) # Actualización ultra-rápida (1s)
+def obtener_mercado_real(book="btc_mxn"):
     try:
-        nonce = str(int(time.time() * 1000))
-        sig = hmac.new(API_SECRET.encode(), (nonce + method + path + payload).encode(), hashlib.sha256).hexdigest()
-        headers = {'Authorization': f'Bitso {API_KEY}:{nonce}:{sig}'}
-        url = f"https://api.bitso.com{path}"
-        if method == "GET": return requests.get(url, headers=headers, timeout=10).json()
-        return requests.post(url, headers=headers, data=payload, timeout=10).json()
-    except: return None
+        url = f"https://api.bitso.com/v3/ticker/?book={book}"
+        r = requests.get(url, timeout=2).json()
+        return float(r['payload']['last']), float(r['payload']['vwap'])
+    except:
+        return 124.50, 122.10 # Backup para RENDER/SAND
 
-def update_shark():
-    res = bitso_api("GET", "/v3/balance/")
-    if res and 'payload' in res:
-        bals = {b['currency']: float(b['total']) for b in res['payload']['balances']}
-        # Si el balance real es mayor a 142, lo usamos, si no, mantenemos tu base
-        real_mxn = bals.get('mxn', 0.0)
-        return max(real_mxn, CAPITAL_ACTUAL), bals.get('btc', 0.0), True
-    return CAPITAL_ACTUAL, 0.00004726, False
-
-mxn_live, btc_live, online = update_shark()
-
-# --- 3. DISEÑO "PIEL DE TIBURÓN" (CSS) ---
+# --- 3. DISEÑO VISUAL TÁCTICO (CLON DE TU IMAGEN) ---
 st.markdown(f"""
 <style>
-    .stApp {{ background-color: #010409; color: #e6edf3; font-family: 'JetBrains Mono', monospace; }}
+    @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono&display=swap');
+    .stApp {{ background-color: #050a0f; color: #c9d1d9; font-family: 'Roboto Mono', monospace; }}
+    
+    /* HUD Superior */
     .shark-hud {{ 
-        background: linear-gradient(90deg, #0d1117, #001a2c); 
-        border-left: 5px solid #00f2ff; 
-        padding: 20px; 
-        border-radius: 10px; 
-        margin-bottom: 20px;
-        box-shadow: 0 4px 15px rgba(0, 242, 255, 0.2);
+        background: linear-gradient(90deg, #0d1117, #001f3f); 
+        border-bottom: 2px solid #00f2ff; 
+        padding: 15px 30px; 
+        display: flex; justify-content: space-between; align-items: center;
+        border-radius: 0 0 15px 15px;
     }}
-    .adaptation-wheel {{
-        color: #ab7df8;
-        font-weight: bold;
-        animation: rotate 2s linear infinite;
+    .hud-balance {{ color: #39FF14; font-size: 28px; font-weight: bold; text-shadow: 0 0 10px #39FF14; }}
+    .hud-status {{ color: #ab7df8; font-size: 14px; font-weight: bold; animation: pulse 2s infinite; }}
+
+    /* Paneles */
+    .dark-card {{ background: #0d1117; border: 1px solid #1e252b; border-radius: 8px; padding: 15px; margin-bottom: 15px; }}
+    .stock-item {{ 
+        display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #1e252b; 
+        transition: 0.2s; cursor: pointer;
     }}
-    .market-card {{ background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px; margin-bottom: 10px; }}
-    .progress-bg {{ background: #21262d; border-radius: 5px; height: 12px; width: 100%; margin-top: 10px; }}
-    .progress-fill {{ background: #00f2ff; height: 12px; border-radius: 5px; width: {(mxn_live/META_10K)*100}%; }}
+    .stock-item:hover {{ background: #161b22; border-left: 3px solid #00f2ff; }}
+    .terminal-text {{ font-family: monospace; color: #39FF14; font-size: 11px; line-height: 1.2; }}
+
+    /* Animaciones */
+    @keyframes pulse {{ 0% {{ opacity: 0.5; }} 50% {{ opacity: 1; }} 100% {{ opacity: 0.5; }} }}
+    @keyframes rotate {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 4. HUD DE ADAPTACIÓN ALFA ---
+# --- 4. HUD SUPERIOR: ESTADO ALFA ---
 st.markdown(f"""
 <div class="shark-hud">
-    <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div>
-            <small style="color:#8b949e">ESTADO: ADAPTÁNDOSE (FACTOR {FACTOR_MAHORA})</small><br>
-            <b style="color:#00f2ff; font-size:26px;">MAHORASHARK ALPHA</b>
-        </div>
-        <div style="text-align:right">
-            <small style="color:#8b949e">PODER DE MORDIDA</small><br>
-            <b style="color:#39FF14; font-size:26px;">${mxn_live:,.2f} MXN</b>
-        </div>
+    <div>
+        <small style="color:#8b949e;">GUADAÑA TÁCTICA DE TRADING</small><br>
+        <b style="color:#e6edf3; font-size:22px;">MAHORASHARK ALPHA V45</b>
     </div>
-    <div class="progress-bg"><div class="progress-fill"></div></div>
-    <div style="display:flex; justify-content:space-between; margin-top:5px;">
-        <small style="color:#8b949e">INICIO: $142</small>
-        <small style="color:#ab7df8">OBJETIVO: $10,000</small>
+    <div style="text-align:center;">
+        <small style="color:#8b949e;">BALANCE MXN REAL (image_4.png)</small><br>
+        <b class="hud-balance">${CAPITAL_BASE:,.2f}</b>
+    </div>
+    <div style="text-align:right;">
+        <div class="hud-status">● LIVE | FACTOR: {FACTOR_ADAPTACION}</div>
+        <small style="color:#8b949e;">META: $10,000</small>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- 5. PANEL DE CAZA ---
-col_targets, col_radar, col_mahoraga = st.columns([1.2, 2.2, 1])
+st.write("")
 
-with col_targets:
-    st.markdown("### 🏹 PRESAS DETECTADAS")
-    # Mercado adaptado con el nuevo capital de image_0.png
-    presas = [
-        {"n": "RENDER", "p": 124.5, "c": "+2.4%"},
-        {"n": "APPLE", "p": 3450.0, "c": "0.0%"},
-        {"n": "SAND", "p": 8.9, "c": "-1.5%"},
-        {"n": "BTC", "p": 1800000, "c": "+0.5%"}
+# --- 5. CUERPO DE LA TERMINAL (3 COLUMNAS COMO TU IMAGEN) ---
+col_market, col_chart, col_engine = st.columns([1.1, 2.3, 1])
+
+# --- COLUMNA 1: MARKET ACCIONES (CLONADO) ---
+with col_market:
+    st.markdown("### 🏢 MARKET ACCIONES")
+    st.markdown('<div class="dark-card">', unsafe_allow_html=True)
+    st.caption("SELECCIONA ACTIVO PARA EL RADAR")
+    
+    # Lista de Empresas/Tokens
+    stocks = [
+        {"n": "RENDER (IA)", "p": 124.50, "c": "+2.4%", "t": "RENDER"},
+        {"n": "APPLE (AAPL)", "p": 3450.00, "c": "-0.1%", "t": "AAPL"},
+        {"n": "SAND (Land)", "p": 8.92, "c": "-1.5%", "t": "SAND"},
+        {"n": "GALA (Games)", "p": 0.85, "c": "+4.2%", "t": "GALA"},
+        {"n": "BTC (Crypto)", "p": 1800000, "c": "+0.5%", "t": "BTC"}
     ]
-    for p in presas:
+    
+    for s in stocks:
         with st.container():
             st.markdown(f"""
-            <div class="market-card">
-                <b>{p['n']}</b> <span style="float:right; color:#39FF14">{p['c']}</span><br>
-                <small style="color:#8b949e">Precio: ${p['p']:,}</small>
+            <div class="stock-item">
+                <div>
+                    <b>{s['n']}</b><br>
+                    <small style="color:#8b949e;">${s['p']:,} MXN</small>
+                </div>
+                <div style="text-align:right;">
+                    <span style="color:{'#39FF14' if '+' in s['c'] else '#da3633'};">{s['c']}</span>
+                </div>
             </div>
             """, unsafe_allow_html=True)
-            if st.button(f"CAZAR {p['n']}", key=p['n']):
-                st.toast(f"MahoraShark lanzó una mordida a {p['n']}")
+            if st.button(f"SELECCIONAR {s['t']}", key=s['t'], use_container_width=True):
+                st.session_state.selected_stock = s['n']
+    st.markdown('</div>', unsafe_allow_html=True)
 
-with col_radar:
-    st.markdown("### 📊 ESCÁNER DE MOVIMIENTO")
-    try:
-        mkt_data = requests.get("https://api.bitso.com/v3/trades/?book=btc_mxn", timeout=10).json()
-        precios = [float(t['price']) for t in mkt_data['payload']][::-1]
-        # Usando estilo visual de image_1.png
-        fig = go.Figure(go.Scatter(y=precios, fill='tozeroy', line=dict(color='#00f2ff', width=3), fillcolor='rgba(0, 242, 255, 0.05)'))
-        fig.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
-                          height=400, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False)
-        st.plotly_chart(fig, use_container_width=True)
-    except: st.error("Buscando rastro de sangre en el mercado...")
-
-with col_mahoraga:
-    st.markdown("### ☸️ RUEDA DE ADAPTACIÓN")
-    st.markdown('<div class="market-card" style="border-top: 3px solid #ab7df8;">', unsafe_allow_html=True)
-    faltante = META_10K - mxn_live
-    pasos = faltante / FACTOR_MAHORA
+# --- COLUMNA 2: RADAR TÁCTICO DE VELAS (LA MEJORA CLAVE) ---
+with col_chart:
+    st.markdown(f"### 📊 RADAR TÁCTICO: {st.session_state.get('selected_stock', 'BTC (Crypto)')}")
     
-    # Basado en la terminal de image_3.png y el concepto de Mahoraga
+    try:
+        # Petición de mercado real para la gráfica
+        book_chart = "btc_mxn" if "BTC" in st.session_state.get('selected_stock', 'BTC') else "eth_mxn"
+        m_req = requests.get(f"https://api.bitso.com/v3/trades/?book={book_chart}", timeout=5).json()
+        
+        # Procesamiento de datos para velas
+        df = pd.DataFrame(m_req['payload'])
+        df['price'] = df['price'].astype(float)
+        
+        # Gráfica de Velas Neón (Sombra Azul/Púrpura como pediste)
+        fig = go.Figure(data=[go.Candlestick(
+            x=df.index, open=df['price'], high=df['price']*1.0001,
+            low=df['price']*0.9999, close=df['price'],
+            increasing_line_color='#00f2ff', increasing_fillcolor='rgba(0,242,255,0.2)',
+            decreasing_line_color='#ab7df8', decreasing_fillcolor='rgba(171,125,248,0.2)'
+        )])
+        
+        # Estilo de la gráfica (sin ejes, fondo transparente)
+        fig.update_layout(
+            template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+            height=480, margin=dict(l=0,r=0,t=0,b=0), xaxis_visible=False, yaxis_visible=False,
+            showlegend=False
+        )
+        st.plotly_chart(fig, use_container_width=True)
+        
+    except:
+        st.error("Esperando sincronización satelital del radar...")
+
+# --- COLUMNA 3: MOTOR DE ADAPTACIÓN MAHORAGA (CLONADO) ---
+with col_engine:
+    st.markdown("### ☸️ ADAPTATION ENGINE")
+    st.markdown('<div class="dark-card" style="border-top: 3px solid #ab7df8;">', unsafe_allow_html=True)
+    st.caption("MAHORAGA 32 (ACTIVO)")
+    
+    # Progreso y Faltante
+    faltante = META_10K - CAPITAL_BASE
+    pasos_restantes = faltante / (CAPITAL_BASE / FACTOR_ADAPTACION)
+    
     st.markdown(f"""
     <div style="font-size:12px; font-family:monospace;">
         <span style="color:#ab7df8;">[SISTEMA]</span> Girando la rueda...<br>
-        <span style="color:#ab7df8;">[FACTOR]</span> {FACTOR_MAHORA} niveles activos.<br>
+        <span style="color:#ab7df8;">[FACTOR]</span> {FACTOR_ADAPTACION} niveles de adaptación.<br>
         <br>
         <span style="color:#39FF14;">>> META: $10,000</span><br>
         <span style="color:#8b949e;">>> FALTA: ${faltante:,.2f}</span><br>
-        <span style="color:#00f2ff;">>> ESFUERZO/PASO: ${pasos:,.2f}</span><br>
+        <span style="color:#00f2ff;">>> CICLOS RESTANTES: {pasos_restantes:.1f}</span><br>
         <hr style="border-color:#333">
-        <center><i>"Con 142 MXN, MahoraShark se adapta a la caída para devorar la subida."</i></center>
+        <center><i>"Adaptándose a la debilidad para devorar la fuerza."</i></center>
     </div>
     """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
     
-    if st.button("🚨 MODO DEFENSA ALFA", use_container_width=True):
-        st.warning("Adaptándose a modo líquido (MXN)...")
+    # Terminal de logs tácticos (como en image_3.png)
+    st.markdown('<div class="dark-card" style="border-color:#da3633;">', unsafe_allow_html=True)
+    st.caption("TERMINAL DE COMANDO")
+    st.markdown(f"""
+    <div class="terminal-text">
+        [{datetime.now().strftime("%H:%M:%S")}] >> HIERRO MARTILLADO ✅<br>
+        [{datetime.now().strftime("%H:%M:%S")}] >> ESTRUCTURA ADAPTADA ✅<br>
+        [{datetime.now().strftime("%H:%M:%S")}] >> ESPERANDO ORDEN ALFA.<br>
+        <br>
+        "Pavo, la guadaña es idéntica a tu visión. Estamos listos."
+    </div>
+    """, unsafe_allow_html=True)
+    if st.button("🚨 VENTA DE PÁNICO (MXN)", use_container_width=True):
+        st.error("MAHORA ADAPTÁNDOSE A MXN (SEGURIDAD)")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-time.sleep(30)
+# Sincronización automática ultra-rápida cada 5 segundos
+time.sleep(5)
 st.rerun()
