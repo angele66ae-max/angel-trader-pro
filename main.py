@@ -1,72 +1,50 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import streamlit as st
+import plotly.graph_objects as go
+import requests
+import time
+from datetime import datetime
 
-const AdaptationWheel = ({ factor = 32 }) => {
-  const [timeLeft, setTimeLeft] = useState(14);
-  const [activeSegments, setActiveSegments] = useState([]);
+# --- 1. CONFIGURACIÓN DE NÚCLEO ---
+SALDO_REAL = 144.95
+FACTOR = 32
+ASSET = "RENDER (IA)"
 
-  // Lógica del Temporizador de 14 segundos
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft((prev) => (prev <= 1 ? 14 : prev - 1));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+st.set_page_config(layout="wide", page_title="MAHORASHARK V50")
 
-  // Simulación de "Procesamiento de Datos" en los segmentos
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const randomSegments = Array.from({ length: 3 }, () => Math.floor(Math.random() * 8));
-      setActiveSegments(randomSegments);
-    }, 800);
-    return () => clearInterval(interval);
-  }, []);
+# --- 2. EL MARTILLO: CSS DE GRADO MILITAR (CERO ESTILO WEB) ---
+st.markdown(f"""
+<style>
+    /* Reset de UI y Fondo Dark Mode Profundo #0A0E14 */
+    [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] {{display: none !important;}}
+    .stApp {{ background-color: #0A0E14 !important; color: #00F2FF !important; }}
+    
+    /* Paneles con Profundidad y Capas (Glassmorphism) */
+    .glass-card {{
+        background: rgba(13, 17, 23, 0.85);
+        border: 1px solid rgba(0, 242, 255, 0.1);
+        padding: 20px;
+        box-shadow: 0 10px 40px rgba(0,0,0,0.9), inset 0 0 20px rgba(0, 242, 255, 0.02);
+        margin-bottom: 15px;
+    }}
 
-  return (
-    <div className="flex flex-col items-center justify-center p-6 bg-[#0A0E14] border border-[#1A1F26] rounded-sm shadow-2xl">
-      <span className="text-[10px] text-gray-600 tracking-[0.2em] mb-4 uppercase font-mono">
-        Adaptation Engine
-      </span>
+    /* Header Táctico Estrecho */
+    .shark-hud {{
+        display: flex; justify-content: space-between; align-items: center;
+        background: #000; padding: 12px 30px;
+        border-bottom: 2px solid #00F2FF;
+        box-shadow: 0 5px 25px rgba(0, 242, 255, 0.2);
+    }}
+    .balance-glow {{
+        font-family: 'Courier New', monospace;
+        font-size: 42px; color: #39FF14; font-weight: bold;
+        text-shadow: 0 0 20px rgba(57, 255, 20, 0.7);
+    }}
 
-      <div className="relative w-40 h-40 flex items-center justify-center">
-        {/* Rueda de Segmentos Radiales */}
-        <motion.div 
-          animate={{ rotate: 360 }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute inset-0 w-full h-full"
-        >
-          {[...Array(8)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute top-0 left-1/2 w-[2px] h-1/2 origin-bottom transition-all duration-300"
-              style={{
-                transform: `translateX(-50%) rotate(${i * 45}deg)`,
-                background: activeSegments.includes(i) 
-                  ? 'linear-gradient(to top, #00F2FF, transparent)' 
-                  : 'linear-gradient(to top, #1A1F26, transparent)',
-                opacity: activeSegments.includes(i) ? 1 : 0.3
-              }}
-            />
-          ))}
-        </motion.div>
-
-        {/* Timón Central (Icono de Mahoraga) */}
-        <div className="relative z-10 w-16 h-16 bg-[#0A0E14] border-2 border-[#00F2FF] rounded-full flex items-center justify-center shadow-[0_0_15px_rgba(0,242,255,0.3)]">
-          <span className="text-3xl text-[#00F2FF] drop-shadow-[0_0_5px_#00F2FF]">☸</span>
-        </div>
-      </div>
-
-      {/* Status y Timer */}
-      <div className="mt-6 text-center font-mono">
-        <div className="text-[#8A2BE2] text-xs font-bold tracking-widest uppercase">
-          Next Check: <span className="text-white">{timeLeft}s</span>
-        </div>
-        <div className="text-[10px] text-gray-500 mt-1">
-          FACTOR_SET: <span className="text-[#00F2FF]">{factor}</span>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default AdaptationWheel;
+    /* Botones de Activo (Sin estilo Streamlit) */
+    .asset-row {{
+        padding: 12px; border-bottom: 1px solid #1A1F26;
+        font-family: 'Courier New', monospace; font-size: 11px;
+        display: flex; justify-content: space-between; transition: 0.3s;
+    }}
+    .asset-row:hover {{ background: rgba(0, 242, 255, 0.1); border-left: 4px solid #00F2FF; }}
+    .active-row {{ background: rgba(0, 242, 255, 0.15); border-left: 4px solid #00F2
